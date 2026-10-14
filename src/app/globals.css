@@ -1,0 +1,131 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ---------------------------------------------------------------------------
+ * Alfabética design tokens (source: "Alfabética Panel" mockup).
+ * Brand colors are exposed as Tailwind colors (bg-grape, text-turquoise-dark…)
+ * and mapped onto the shadcn/ui semantic variables below.
+ * ------------------------------------------------------------------------- */
+:root {
+  --alf-eerie-black: oklch(0.205 0 0);
+  --alf-near-white: oklch(0.989 0 0);
+  --alf-gray: oklch(0.95 0 0);
+  --alf-crema: oklch(0.974 0.018 85);
+  --alf-grape: oklch(0.621 0.193 277);
+  --alf-turquoise: oklch(0.606 0.105 207);
+  --alf-turquoise-dark: oklch(0.5 0.105 207);
+  --alf-tangerine: oklch(0.676 0.214 35);
+  --alf-tan-sun: oklch(0.823 0.135 80);
+  --alf-tan-sun-dark: oklch(0.45 0.09 75);
+  --alf-bubblegum: oklch(0.835 0.122 330);
+  --alf-bubblegum-dark: oklch(0.5 0.13 330);
+  --alf-card-shadow: 0 1px 2px oklch(0.205 0 0 / 6%), 0 6px 16px oklch(0.205 0 0 / 6%);
+
+  /* Accent of the current module (spine, masthead bar, primary actions). */
+  --module: var(--alf-grape);
+  /* Darker variant for text/buttons when the accent is too light (tan-sun, bubblegum). */
+  --module-strong: var(--alf-grape);
+
+  --radius: 0.75rem;
+  --background: oklch(0.935 0 0);
+  --foreground: var(--alf-eerie-black);
+  --card: var(--alf-near-white);
+  --card-foreground: var(--alf-eerie-black);
+  --popover: var(--alf-near-white);
+  --popover-foreground: var(--alf-eerie-black);
+  --primary: var(--module-strong);
+  --primary-foreground: var(--alf-near-white);
+  --secondary: var(--alf-gray);
+  --secondary-foreground: var(--alf-eerie-black);
+  --muted: var(--alf-gray);
+  --muted-foreground: oklch(0.205 0 0 / 60%);
+  --accent: var(--alf-gray);
+  --accent-foreground: var(--alf-eerie-black);
+  --destructive: var(--alf-tangerine);
+  --border: oklch(0.205 0 0 / 10%);
+  --input: oklch(0.205 0 0 / 12%);
+  --ring: var(--module-strong);
+}
+
+@theme inline {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-eerie: var(--alf-eerie-black);
+  --color-near-white: var(--alf-near-white);
+  --color-gray-soft: var(--alf-gray);
+  --color-crema: var(--alf-crema);
+  --color-grape: var(--alf-grape);
+  --color-turquoise: var(--alf-turquoise);
+  --color-turquoise-dark: var(--alf-turquoise-dark);
+  --color-tangerine: var(--alf-tangerine);
+  --color-tan-sun: var(--alf-tan-sun);
+  --color-tan-sun-dark: var(--alf-tan-sun-dark);
+  --color-bubblegum: var(--alf-bubblegum);
+  --color-bubblegum-dark: var(--alf-bubblegum-dark);
+  --color-module: var(--module);
+  --color-module-strong: var(--module-strong);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  /* Resolved where used, so each module's --module-strong applies (also inside portals). */
+  --color-primary: var(--module-strong);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--module-strong);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --shadow-card: var(--alf-card-shadow);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    font-optical-sizing: auto;
+  }
+  ::selection {
+    background: oklch(0.621 0.193 277 / 20%);
+  }
+}
+
+@utility font-display {
+  font-family: var(--font-serif);
+  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
+}
+
+@utility eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
