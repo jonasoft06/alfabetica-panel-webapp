@@ -22,6 +22,8 @@ export interface ConfirmDialogProps {
   confirmLabel: string;
   cancelLabel?: string;
   icon?: "warning" | "trash";
+  /** Icon of the confirm button (defaults to the trash can). */
+  confirmIcon?: React.ReactNode;
   pending?: boolean;
   onConfirm: () => void;
 }
@@ -48,6 +50,7 @@ function ConfirmDialogContent({
   confirmLabel,
   cancelLabel = "Cancelar",
   icon = "warning",
+  confirmIcon = <Trash2Icon />,
   pending,
   onConfirm,
   onOpenChange,
@@ -112,7 +115,7 @@ function ConfirmDialogContent({
           {cancelLabel}
         </Button>
         <Button variant="destructive" onClick={onConfirm} disabled={!ready || pending}>
-          <Trash2Icon /> {pending ? "Procesando…" : confirmLabel}
+          {confirmIcon} {pending ? "Procesando…" : confirmLabel}
         </Button>
       </ModalFooter>
     </ModalContent>

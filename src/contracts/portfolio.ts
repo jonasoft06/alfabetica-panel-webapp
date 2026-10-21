@@ -13,19 +13,27 @@ export interface PortfolioDetail {
   updatedAt: IsoDate;
 }
 
+/** Exact pixel size panel-api requires for a portfolio cover (`portfolio-cover.config.ts`, 3:4). */
+export const PORTFOLIO_COVER_SIZE = { width: 1200, height: 1600 } as const;
+
 /** @api existing — PUT /projects/:id/portfolio (UpsertPortfolioDto). */
 export interface UpsertPortfolioRequest {
   displayOrder?: number;
 }
 
-/** @api existing — 409 body of POST /projects/:id/portfolio/publish. */
+/** @api existing — GET /portfolios query (FindPortfoliosQueryDto). */
+export interface FindPortfoliosQuery {
+  status?: "published" | "unpublished";
+}
+
+/** @api existing — 409 body of POST /projects/:id/portfolio/publish (the API sends the code as `reason`). */
 export interface PortfolioLimitError {
   code: "PORTFOLIO_LIMIT_REACHED";
   maxItems: number;
   currentCount: number;
 }
 
-/** @api proposed — item of GET /portfolios. */
+/** @api existing — item of GET /portfolios (PortfolioListItemDto). */
 export interface PortfolioListItem {
   id: string;
   projectId: string;
@@ -40,7 +48,7 @@ export interface PortfolioListItem {
   updatedAt: IsoDate;
 }
 
-/** @api proposed — GET /portfolios. */
+/** @api existing — GET /portfolios?status=published|unpublished. `counts` ignore the filter. */
 export interface PortfolioListResponse {
   items: PortfolioListItem[];
   counts: { total: number; published: number; unpublished: number; withoutCover: number };

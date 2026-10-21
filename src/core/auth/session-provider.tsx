@@ -4,13 +4,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import type { CurrentUser, PermissionKey } from "@/contracts/auth";
+import { ApiError } from "@/core/http/api-error";
 import { onSessionExpired, refreshAccessToken } from "@/core/http/http-client";
 import { authApi } from "./auth-api";
 import { getIdentityProvider } from "./identity";
 import { hasPermission } from "./permissions";
 import { tokenStore } from "./token-store";
 
-type SessionStatus = "idle" | "loading" | "authenticated" | "unauthenticated";
+/** `unavailable`: the session could not be checked (network / server error) — the refresh cookie is kept. */
+type SessionStatus = "idle" | "loading" | "authenticated" | "unauthenticated" | "unavailable";
+
+const NO_SESSION = Symbol("no-session");
+/** The refresh cookie (or the account) was rejected: only then is the session over. */
+const isRejection = (error: unknown) => error === NO_SESSION || (error instanceof ApiError && (error.isUnauthorized || error.isForbidden));
 
 interface SessionContextValue {
   status: SessionStatus;
@@ -44,13 +50,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     bootstrapping.current ??= (async () => {
       setStatus("loading");
       try {
-        if (!tokenStore.get() && !(await refreshAccessToken())) throw new Error("No session");
+        if (!tokenStore.get() && !(await refreshAccessToken())) throw NO_SESSION;
         setUser(await authApi.me());
         setStatus("authenticated");
-      } catch {
-        // Stale or invalid refresh cookie: clear it so the route guard stops redirecting to the panel.
-        await authApi.logout().catch(() => undefined);
-        reset();
+      } catch (error) {
+        if (isRejection(error)) {
+          // Stale or invalid refresh cookie: clear it so the route guard stops redirecting to the panel.
+          await authApi.logout().catch(() => undefined);
+          reset();
+        } else {
+          // panel-api unreachable or failing: keep the cookie so a retry restores the same session.
+          setStatus("unavailable");
+        }
       } finally {
         bootstrapping.current = null;
       }

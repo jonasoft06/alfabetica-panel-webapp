@@ -19,11 +19,11 @@ export interface ProjectListItem {
   hasPortfolio: boolean;
   hasPublication: boolean;
   hasProduction: boolean;
-  /** @api proposed — needed by the list row (second line). */
+  /** Not returned by GET /projects yet (see docs/API_NOTES.md 2.1) — optional on purpose. Needed by the list row (second line). */
   subtitle?: string | null;
-  /** @api proposed — needed by the list row (third line). */
+  /** Not returned yet — list row (third line). */
   description?: string | null;
-  /** @api proposed — "Actualizado" column and sort. Falls back to createdAt. */
+  /** Not returned yet — "Actualizado" column and sort. Falls back to createdAt. */
   updatedAt?: IsoDate;
 }
 
@@ -66,8 +66,11 @@ export interface CreateProjectRequest {
   client?: string;
   issueYear?: number;
   tags?: string[];
+  /** Facets created in the same transaction as the project (empty objects: their content is filled later). */
   portfolio?: Record<string, never>;
   publication?: { type: PublicationType };
+  /** Created NOT_STARTED (manual mode) with an API-generated publicCode. */
+  production?: Record<string, never>;
 }
 
 /** @api existing — PATCH /projects/:id (UpdateProjectDto). `null` clears an optional field. */

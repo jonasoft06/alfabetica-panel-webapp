@@ -1,6 +1,7 @@
 /**
  * Single source of truth for panel-api routes (relative to the BFF prefix `/api`).
- * Paths match the NestJS controllers 1:1. Proposed routes are flagged with `// TODO(api)`.
+ * Paths match the NestJS controllers 1:1. Routes the API does not have yet are flagged with `// TODO(api)`
+ * (served only by the mock server; see docs/API_NOTES.md).
  */
 const enc = encodeURIComponent;
 
@@ -12,20 +13,20 @@ export const endpoints = {
   },
   users: {
     me: () => "/users/me",
-    list: () => "/users", // TODO(api)
-    invite: () => "/users/invitations", // TODO(api)
+    list: () => "/users",
+    invite: () => "/users/invitations",
     permissions: (id: string) => `/users/${enc(id)}/permissions`, // TODO(api)
-    status: (id: string) => `/users/${enc(id)}/status`, // TODO(api)
-    roles: () => "/roles", // TODO(api)
-    permissionCatalog: () => "/permissions", // TODO(api)
+    status: (id: string) => `/users/${enc(id)}/status`,
+    roles: () => "/roles",
+    permissionCatalog: () => "/permissions",
   },
   projects: {
     list: () => "/projects",
     detail: (id: string) => `/projects/${enc(id)}`,
-    media: (id: string) => `/projects/${enc(id)}/media`, // GET is TODO(api); POST exists
+    media: (id: string) => `/projects/${enc(id)}/media`,
   },
   portfolio: {
-    list: () => "/portfolios", // TODO(api)
+    list: () => "/portfolios",
     root: (projectId: string) => `/projects/${enc(projectId)}/portfolio`,
     cover: (projectId: string) => `/projects/${enc(projectId)}/portfolio/cover`,
     coverConfirm: (projectId: string) => `/projects/${enc(projectId)}/portfolio/cover/confirm`,
@@ -33,7 +34,7 @@ export const endpoints = {
     unpublish: (projectId: string) => `/projects/${enc(projectId)}/portfolio/unpublish`,
   },
   publication: {
-    list: () => "/publications", // TODO(api)
+    list: () => "/publications",
     root: (projectId: string) => `/projects/${enc(projectId)}/publication`,
     cover: (projectId: string) => `/projects/${enc(projectId)}/publication/cover`,
     coverConfirm: (projectId: string) => `/projects/${enc(projectId)}/publication/cover/confirm`,
@@ -48,10 +49,10 @@ export const endpoints = {
     remove: (mediaId: string) => `/media/${enc(mediaId)}`,
   },
   production: {
-    list: () => "/productions", // TODO(api)
-    stages: () => "/production-stages", // TODO(api)
-    sync: () => "/productions/sync", // TODO(api)
-    root: (projectId: string) => `/projects/${enc(projectId)}/production`, // TODO(api)
+    list: () => "/productions",
+    phases: () => "/production-phases",
+    root: (projectId: string) => `/projects/${enc(projectId)}/production`,
+    sync: (projectId: string) => `/projects/${enc(projectId)}/production/sync`,
   },
   dashboard: {
     summary: () => "/dashboard/summary", // TODO(api)

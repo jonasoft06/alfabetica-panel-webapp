@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { CheckIcon, LoaderCircleIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import type { MediaItem } from "@/contracts/media";
+import { PORTFOLIO_COVER_SIZE } from "@/contracts/portfolio";
 import { notify } from "@/shared/components/feedback/notify";
 import { SpineCard } from "@/shared/components/data/spine-card";
 import { cn } from "@/shared/lib/cn";
@@ -39,11 +40,11 @@ export function CoverEditor({ projectId, title, cover, canWrite, onRequestRemove
     if (problem) return;
     setPreview(URL.createObjectURL(file));
     upload.mutate(
-      { projectId, file, alt: `Portada de ${title}`.slice(0, 200) },
+      { projectId, file, alt: `Portada de ${title}`.slice(0, 200), replaceMediaId: cover?.id },
       {
         onSuccess: () => notify.success(cover ? "Portada reemplazada" : "Portada subida", title),
         onError: (e) => {
-          setError("No se pudo subir la portada. Intenta de nuevo.");
+          setError(cover ? "No se pudo reemplazar la portada. Si el título quedó sin portada, sube la imagen de nuevo." : "No se pudo subir la portada. Intenta de nuevo.");
           notify.error(e, "No se pudo subir la portada");
         },
         onSettled: () => setPreview(null),
@@ -101,7 +102,7 @@ export function CoverEditor({ projectId, title, cover, canWrite, onRequestRemove
               )}
             </div>
           )}
-          <p className="mt-3 text-xs text-muted-foreground">JPG, PNG o WebP · hasta 15 MB · proporción 3:4 recomendada</p>
+          <p className="mt-3 text-xs text-muted-foreground">JPG, PNG o WebP · hasta 15 MB · se recorta al centro a {PORTFOLIO_COVER_SIZE.width} × {PORTFOLIO_COVER_SIZE.height} px (3:4)</p>
           {error ? (
             <p role="alert" className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-xs font-semibold text-destructive">
               {error}

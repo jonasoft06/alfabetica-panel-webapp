@@ -10,7 +10,7 @@ export default function NotFound() {
         description="La dirección no existe o fue movida."
         action={
           <Button asChild>
-            <Link href="/resumen">Volver al resumen</Link>
+            <Link href="/">Volver al inicio</Link>
           </Button>
         }
       />

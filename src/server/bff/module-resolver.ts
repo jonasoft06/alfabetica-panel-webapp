@@ -1,5 +1,5 @@
 import "server-only";
-import type { ApiModule } from "@/config/env.server";
+import type { ApiModule } from "@/config/api-modes";
 
 /**
  * Allow-list of panel-api paths the BFF will serve, grouped by module.
@@ -19,7 +19,7 @@ const RULES: [RegExp, ApiModule][] = [
   [/^publications(\/.*)?$/, "publication"],
   [/^projects\/[^/]+\/production(\/.*)?$/, "production"],
   [/^productions(\/.*)?$/, "production"],
-  [/^production-stages$/, "production"],
+  [/^production-phases$/, "production"],
   [/^projects(\/[^/]+)?$/, "projects"],
   [/^dashboard\/.+$/, "dashboard"],
 ];

@@ -1,12 +1,10 @@
 import "server-only";
 import { z } from "zod";
+import { API_MODULES, isMockOnly as isMockOnlyEnv, type ApiMode, type ApiModule } from "./api-modes";
 
-/** Groups of panel-api endpoints that can be switched between the mock server and the real API. */
-export const API_MODULES = ["auth", "users", "projects", "portfolio", "publication", "media", "production", "dashboard"] as const;
-export type ApiModule = (typeof API_MODULES)[number];
+export { API_MODULES, type ApiMode, type ApiModule };
 
 const mode = z.enum(["mock", "real"]);
-export type ApiMode = z.infer<typeof mode>;
 
 const schema = z
   .object({
@@ -41,3 +39,6 @@ export function modeFor(module: ApiModule): ApiMode {
   const key = `API_MODE_${module.toUpperCase()}` as keyof typeof serverEnv;
   return (serverEnv[key] as ApiMode | undefined) ?? serverEnv.API_MODE;
 }
+
+/** Every module served by the mock (demo mode). See `api-modes.ts`. */
+export const isMockOnly = () => isMockOnlyEnv(serverEnv as unknown as Record<string, string | undefined>);

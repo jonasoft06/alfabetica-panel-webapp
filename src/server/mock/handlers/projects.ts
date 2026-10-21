@@ -7,6 +7,7 @@ import { badRequest, conflict, forbidden, json, noContent, notFound } from "../h
 import { findActiveProject, touchProject } from "../lookups";
 import { toProjectDetail, toProjectListItem } from "../mappers";
 import type { MockRouter } from "../router";
+import { createProductionRecord, UNLINKED } from "./shared/production-records";
 import { createPublicationRecord, deletePublicationCascade } from "./shared/publication-records";
 
 function validateCore(body: UpdateProjectRequest, requireTitle: boolean): string[] {
@@ -71,6 +72,8 @@ export function registerProjects(router: MockRouter) {
     db().projects.push(project);
     if (body.portfolio) createPortfolioRecord(project);
     if (body.publication) createPublicationRecord(project, { type: body.publication.type });
+    // Same transaction as the project in panel-api: created NOT_STARTED with a generated publicCode.
+    if (body.production) createProductionRecord(project.id);
     return json(toProjectDetail(project), { status: 201 });
   });
 
@@ -98,6 +101,8 @@ export function registerProjects(router: MockRouter) {
     for (const facet of [...db().portfolios, ...db().publications]) {
       if (facet.projectId === project.id) facet.slug = `${facet.slug}-deleted-${project.id}`;
     }
+    // The production row (and its publicCode) stays, but the ClickUp list is released for other projects.
+    for (const production of db().productions) if (production.projectId === project.id) Object.assign(production, UNLINKED);
     return noContent();
   });
 

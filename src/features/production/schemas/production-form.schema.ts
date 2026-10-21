@@ -1,50 +1,75 @@
 import { z } from "zod";
-import type { ProductionDetail, UpsertProductionRequest } from "@/contracts/production";
-import { addDaysIso, CLICKUP_ID_PATTERN } from "../lib/clickup";
+import { BOOK_TYPES, PRODUCTION_STATUSES, type ProductionDetail, type UpsertProductionRequest } from "@/contracts/production";
+import { CLICKUP_LIST_ID_PATTERN } from "../lib/clickup";
 
-const isoDate = z.string().refine((v) => v === "" || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(`${v}T00:00:00Z`))), "Usa una fecha válida.");
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+/** Native date inputs hand back "" or "yyyy-mm-dd": kept as plain strings, never turned into a Date. */
+const calendarDate = z.string().refine((v) => v === "" || DATE_ONLY.test(v), "Usa una fecha válida.");
 
-/** Mirrors the proposed UpsertProductionDto. */
+/**
+ * Mirrors UpsertProductionDto. Selects use "" for "none". bookType, status, phase and the two dates are the
+ * manual fields: only sent while the production is not linked to ClickUp.
+ */
 export const productionFormSchema = z.object({
-  publicCode: z.string().trim().min(1, "Escribe el código al público.").max(40, "Máximo 40 caracteres."),
+  authorName: z.string().trim().max(200, "Máximo 200 caracteres."),
   clickupListId: z
     .string()
     .trim()
-    .refine((v) => v === "" || CLICKUP_ID_PATTERN.test(v), "Usa 5 a 20 letras o números, sin espacios ni símbolos."),
-  startDate: isoDate,
-  estimatedTotalDays: z
-    .string()
-    .trim()
-    .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) > 0 && Number(v) <= 3650), "Escribe un número entero de días mayor a 0."),
-  currentStageId: z.string(),
+    .refine((v) => v === "" || CLICKUP_LIST_ID_PATTERN.test(v), "Usa solo números: el ID de la lista o su URL de ClickUp."),
+  bookType: z.union([z.enum(BOOK_TYPES), z.literal("")]),
+  status: z.enum(PRODUCTION_STATUSES),
+  currentPhaseCode: z.string(),
+  currentStageDueDate: calendarDate,
+  estimatedEndDate: calendarDate,
 });
 
 export type ProductionFormValues = z.infer<typeof productionFormSchema>;
+type Dirty = Partial<Record<keyof ProductionFormValues, unknown>>;
 
-export const emptyProductionForm: ProductionFormValues = { publicCode: "", clickupListId: "", startDate: "", estimatedTotalDays: "", currentStageId: "" };
+export const emptyProductionForm: ProductionFormValues = {
+  authorName: "",
+  clickupListId: "",
+  bookType: "",
+  status: "NOT_STARTED",
+  currentPhaseCode: "",
+  currentStageDueDate: "",
+  estimatedEndDate: "",
+};
 
 export function toFormValues(p: ProductionDetail): ProductionFormValues {
   return {
-    publicCode: p.publicCode,
+    authorName: p.authorName ?? "",
     clickupListId: p.clickupListId ?? "",
-    startDate: p.startDate ?? "",
-    estimatedTotalDays: p.estimatedTotalDays ? String(p.estimatedTotalDays) : "",
-    currentStageId: p.currentStageId ?? "",
+    bookType: p.bookType ?? "",
+    status: p.status,
+    currentPhaseCode: p.currentPhase?.code ?? "",
+    currentStageDueDate: p.currentStageDueDate ?? "",
+    estimatedEndDate: p.estimatedEndDate ?? "",
   };
 }
 
-/** Estimated end date is derived (start + days), mirroring the "CALCULADO" field of the board. */
-export function computeEndDate(values: Pick<ProductionFormValues, "startDate" | "estimatedTotalDays">): string | null {
-  return addDaysIso(values.startDate, Number(values.estimatedTotalDays));
+const orNull = <T extends string>(value: T | "") => (value === "" ? null : value);
+
+/**
+ * Only changed fields are sent (absent = unchanged); an emptied field is sent as null.
+ * Linking takes the list's data from ClickUp, so manual edits are left out of a link request (the API would
+ * reject them). Status and phase travel together: the form keeps them consistent (`manual-state.ts`).
+ */
+export function toUpsertPayload(values: ProductionFormValues, dirty: Dirty, { manual }: { manual: boolean }): UpsertProductionRequest {
+  const body: UpsertProductionRequest = {};
+  if (dirty.authorName) body.authorName = values.authorName || null;
+  if (dirty.clickupListId) body.clickupListId = values.clickupListId || null;
+  if (!manual || body.clickupListId) return body;
+  if (dirty.bookType) body.bookType = orNull(values.bookType);
+  if (dirty.status || dirty.currentPhaseCode) {
+    body.status = values.status;
+    body.currentPhaseCode = orNull(values.currentPhaseCode);
+  }
+  if (dirty.currentStageDueDate) body.currentStageDueDate = orNull(values.currentStageDueDate);
+  if (dirty.estimatedEndDate) body.estimatedEndDate = orNull(values.estimatedEndDate);
+  return body;
 }
 
-export function toUpsertPayload(values: ProductionFormValues): UpsertProductionRequest {
-  return {
-    publicCode: values.publicCode,
-    clickupListId: values.clickupListId || null,
-    startDate: values.startDate || null,
-    estimatedTotalDays: values.estimatedTotalDays ? Number(values.estimatedTotalDays) : null,
-    estimatedEndDate: computeEndDate(values),
-    currentStageId: values.currentStageId || null,
-  };
-}
+/** Whether any manual field has unsaved changes (they are dropped when linking). */
+export const hasManualChanges = (dirty: Dirty) =>
+  !!(dirty.bookType || dirty.status || dirty.currentPhaseCode || dirty.currentStageDueDate || dirty.estimatedEndDate);

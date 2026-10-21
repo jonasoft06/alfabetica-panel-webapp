@@ -16,12 +16,12 @@ import { ReadOnlyBanner } from "@/shared/components/feedback/read-only-banner";
 import { usePageSubtitle } from "@/shared/components/layout/page-meta";
 import { plural } from "@/shared/lib/format";
 import { Button } from "@/shared/ui/button";
-import { useResendInvitation, useUpdateCollaboratorStatus } from "../hooks/use-collaborator-mutations";
+import { useUpdateCollaboratorStatus } from "../hooks/use-collaborator-mutations";
 import { useCollaborators } from "../hooks/use-collaborators";
+import { COLLABORATOR_ERROR_MESSAGES } from "../lib/collaborator-errors";
 import { deactivationBlock, filterCollaborators, STATUS_LABELS, type StatusFilter } from "../lib/collaborator-filters";
 import { CollaboratorList, CollaboratorListSkeleton } from "./collaborator-list";
 import { InviteModal } from "./invite-modal";
-import { PermissionsModal } from "./permissions-modal";
 
 const STATUS_DOT = { ACTIVE: "bg-turquoise", INVITED: "bg-tangerine", INACTIVE: "bg-eerie/30" } as const;
 
@@ -33,11 +33,10 @@ export function CollaboratorsView() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [permissionsTarget, setPermissionsTarget] = useState<UserListItem | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<UserListItem | null>(null);
+  // Deactivating an ACTIVE user and cancelling an invitation are the same call (status INACTIVE).
+  const [deactivateTarget, setDeactivateTarget] = useState<{ user: UserListItem; kind: "deactivate" | "cancel" } | null>(null);
 
   const updateStatus = useUpdateCollaboratorStatus();
-  const resend = useResendInvitation();
 
   const items = useMemo(() => data ?? [], [data]);
   const filtered = useMemo(() => filterCollaborators(items, { query, status }), [items, query, status]);
@@ -59,32 +58,31 @@ export function CollaboratorsView() {
 
   const confirmDeactivate = () => {
     if (!deactivateTarget) return;
-    const target = deactivateTarget;
+    const { user: target, kind } = deactivateTarget;
     updateStatus.mutate(
       { id: target.id, body: { status: "INACTIVE" } },
       {
         onSuccess: () => {
           setDeactivateTarget(null);
-          notify.removed("Colaborador desactivado", displayName(target));
+          notify.removed(kind === "cancel" ? "Invitación cancelada" : "Colaborador desactivado", kind === "cancel" ? target.email : displayName(target));
         },
-        onError: (e) => notify.error(e, "No se pudo desactivar al colaborador"),
+        onError: (e) =>
+          notify.error(e, kind === "cancel" ? "No se pudo cancelar la invitación" : "No se pudo desactivar al colaborador", COLLABORATOR_ERROR_MESSAGES),
       },
     );
   };
 
   const actions = {
-    onEditPermissions: setPermissionsTarget,
-    onDeactivate: setDeactivateTarget,
+    onDeactivate: (user: UserListItem) => setDeactivateTarget({ user, kind: "deactivate" }),
+    onCancelInvitation: (user: UserListItem) => setDeactivateTarget({ user, kind: "cancel" }),
     onReactivate: (u: UserListItem) =>
       updateStatus.mutate(
         { id: u.id, body: { status: "ACTIVE" } },
-        { onSuccess: () => notify.success("Colaborador reactivado", displayName(u)), onError: (e) => notify.error(e, "No se pudo reactivar al colaborador") },
+        {
+          onSuccess: () => notify.success("Colaborador reactivado", displayName(u)),
+          onError: (e) => notify.error(e, "No se pudo reactivar al colaborador", COLLABORATOR_ERROR_MESSAGES),
+        },
       ),
-    onResend: (u: UserListItem) =>
-      resend.mutate(u.id, {
-        onSuccess: () => notify.success("Invitación reenviada", `${u.email} · vence en 7 días`),
-        onError: (e) => notify.error(e, "No se pudo reenviar la invitación"),
-      }),
   };
 
   const isEmptyCatalog = data && items.length === 0;
@@ -105,7 +103,7 @@ export function CollaboratorsView() {
           <Button
             size="lg"
             onClick={() => setInviteOpen(true)}
-            className="fixed right-4 bottom-[88px] z-30 rounded-2xl shadow-lg md:static md:rounded-xl md:shadow-sm"
+            className="fixed right-4 bottom-[max(env(safe-area-inset-bottom),1rem)] z-30 rounded-2xl shadow-lg md:static md:rounded-xl md:shadow-sm"
           >
             <UserPlusIcon /> Invitar colaborador
           </Button>
@@ -118,7 +116,7 @@ export function CollaboratorsView() {
 
       {!canManage && (
         <ReadOnlyBanner moduleLabel="Colaboradores" showLink={false}>
-          Puedes ver quién forma parte del equipo y a qué módulos accede, pero invitar, cambiar permisos o desactivar cuentas requiere el módulo{" "}
+          Puedes ver quién forma parte del equipo y a qué módulos accede, pero invitar o desactivar cuentas requiere el módulo{" "}
           <strong className="font-bold text-eerie">Colaboradores</strong>.
         </ReadOnlyBanner>
       )}
@@ -178,27 +176,30 @@ export function CollaboratorsView() {
       </SpineCard>
 
       <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
-      <PermissionsModal user={permissionsTarget} allUsers={items} currentUserId={me?.id} onClose={() => setPermissionsTarget(null)} />
-
       <ConfirmDialog
         open={!!deactivateTarget}
         onOpenChange={(open) => !open && setDeactivateTarget(null)}
-        title="Desactivar colaborador"
+        title={deactivateTarget?.kind === "cancel" ? "Cancelar invitación" : "Desactivar colaborador"}
         description={
-          deactivateTarget && (
+          deactivateTarget &&
+          (deactivateTarget.kind === "cancel" ? (
             <>
-              <strong className="text-eerie">{displayName(deactivateTarget)}</strong> dejará de poder entrar al panel. Podrás reactivar la cuenta cuando
+              <strong className="text-eerie">{deactivateTarget.user.email}</strong> ya no podrá entrar al panel con esta invitación.
+            </>
+          ) : (
+            <>
+              <strong className="text-eerie">{displayName(deactivateTarget.user)}</strong> dejará de poder entrar al panel. Podrás reactivar la cuenta cuando
               quieras.
             </>
-          )
+          ))
         }
         consequencesTitle="Qué pasará"
-        consequences={[
-          "Se cierra el acceso al panel de inmediato",
-          "Sus permisos se conservan por si lo reactivas",
-          "Su trabajo en proyectos y módulos no se toca",
-        ]}
-        confirmLabel="Desactivar"
+        consequences={
+          deactivateTarget?.kind === "cancel"
+            ? ["La invitación deja de ser válida de inmediato", "La persona queda como Inactiva en la lista", "Volver a invitarla aún no está disponible"]
+            : ["Se cierra el acceso al panel de inmediato", "Sus permisos se conservan por si lo reactivas", "Su trabajo en proyectos y módulos no se toca"]
+        }
+        confirmLabel={deactivateTarget?.kind === "cancel" ? "Cancelar invitación" : "Desactivar"}
         pending={updateStatus.isPending}
         onConfirm={confirmDeactivate}
       />

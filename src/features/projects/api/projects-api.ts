@@ -1,6 +1,7 @@
 import type { CreateProjectRequest, FindProjectsQuery, ProjectDetail, ProjectListItem, UpdateProjectRequest } from "@/contracts/projects";
 import type { CreatePublicationRequest, PublicationDetail } from "@/contracts/publication";
 import type { PortfolioDetail } from "@/contracts/portfolio";
+import type { ProductionDetail } from "@/contracts/production";
 import { endpoints } from "@/core/http/endpoints";
 import { http } from "@/core/http/http-client";
 
@@ -16,9 +17,7 @@ export const projectsApi = {
   removePortfolio: (id: string) => http.delete(endpoints.portfolio.root(id)),
   addPublication: (id: string, body: CreatePublicationRequest) => http.post<PublicationDetail>(endpoints.publication.root(id), body),
   removePublication: (id: string) => http.delete(endpoints.publication.root(id)),
-  /** TODO(api): proposed POST /projects/:id/production */
-  addProduction: (id: string) => http.post(endpoints.production.root(id)),
-  /** TODO(api): proposed DELETE /projects/:id/production */
+  addProduction: (id: string) => http.post<ProductionDetail>(endpoints.production.root(id)),
   removeProduction: (id: string) => http.delete(endpoints.production.root(id)),
 };
 

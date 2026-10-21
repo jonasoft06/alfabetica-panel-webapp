@@ -146,7 +146,7 @@ export function ProjectsView() {
           <Button
             size="lg"
             onClick={() => setFormMode({ kind: "create" })}
-            className="fixed right-4 bottom-[88px] z-30 rounded-2xl shadow-lg md:static md:rounded-xl md:shadow-sm"
+            className="fixed right-4 bottom-[max(env(safe-area-inset-bottom),1rem)] z-30 rounded-2xl shadow-lg md:static md:rounded-xl md:shadow-sm"
           >
             <PlusIcon /> Nuevo proyecto
           </Button>

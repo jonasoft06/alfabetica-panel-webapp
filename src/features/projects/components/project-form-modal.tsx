@@ -78,13 +78,12 @@ function ProjectFormContent({ mode, onClose, hiddenRelations, onRequestRemoveRel
     try {
       if (mode.kind === "create") {
         const withPublication = relations.includes("publication") && storeEnabled && canPublication;
+        // Every chosen relation goes in the same POST: panel-api creates the project and its facets in one transaction.
         const created = await create.mutateAsync({
-          body: {
-            ...toCreatePayload(values),
-            ...(relations.includes("portfolio") ? { portfolio: {} } : {}),
-            ...(withPublication ? { publication: { type: publicationType } } : {}),
-          },
-          withProduction: relations.includes("production"),
+          ...toCreatePayload(values),
+          ...(relations.includes("portfolio") ? { portfolio: {} } : {}),
+          ...(withPublication ? { publication: { type: publicationType } } : {}),
+          ...(relations.includes("production") ? { production: {} } : {}),
         });
         const labels = relations
           .filter((r) => r !== "publication" || withPublication)

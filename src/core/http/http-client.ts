@@ -46,11 +46,10 @@ async function parseBody<T>(response: Response): Promise<T> {
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-async function send(method: string, path: string, options: RequestOptions): Promise<Response> {
+async function send(method: string, path: string, options: RequestOptions, token: string | null = null): Promise<Response> {
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (options.body !== undefined) headers.set("Content-Type", "application/json");
-  const token = tokenStore.get();
   if (!options.anonymous && token) headers.set("Authorization", `Bearer ${token}`);
 
   try {
@@ -75,17 +74,20 @@ let refreshInFlight: Promise<string | null> | null = null;
 /**
  * Exchanges the httpOnly refresh cookie for a new access token.
  * Concurrent 401s share one refresh request instead of racing.
+ *
+ * Resolves `null` only when panel-api rejects the refresh cookie (401/403): the session is over.
+ * A network error or a 5xx rejects with `ApiError` instead, so a hiccup never logs the user out
+ * while the refresh token is still valid.
  */
 export function refreshAccessToken(): Promise<string | null> {
   refreshInFlight ??= (async () => {
     try {
       const response = await send("POST", endpoints.auth.refresh(), { anonymous: true });
-      if (!response.ok) return null;
+      if (response.status === 401 || response.status === 403) return null;
+      if (!response.ok) throw new ApiError(response.status, await parseBody<ApiErrorBody>(response).catch(() => undefined));
       const { accessToken } = await parseBody<LoginResponse>(response);
       tokenStore.set(accessToken);
       return accessToken;
-    } catch {
-      return null;
     } finally {
       refreshInFlight = null;
     }
@@ -94,16 +96,20 @@ export function refreshAccessToken(): Promise<string | null> {
 }
 
 async function request<T>(method: string, path: string, options: RequestOptions = {}): Promise<T> {
-  let response = await send(method, path, options);
+  const sentToken = tokenStore.get();
+  let response = await send(method, path, options, sentToken);
 
+  // Access tokens last 15 minutes: renew once and retry. If another call already renewed the token
+  // while this one was in flight, retry with that token instead of refreshing again.
   if (response.status === 401 && !options.anonymous) {
-    const renewed = await refreshAccessToken();
+    const current = tokenStore.get();
+    const renewed = current && current !== sentToken ? current : await refreshAccessToken();
     if (!renewed) {
       tokenStore.clear();
       sessionExpiredListeners.forEach((listener) => listener());
       throw new ApiError(401, await parseBody<ApiErrorBody>(response).catch(() => undefined));
     }
-    response = await send(method, path, options);
+    response = await send(method, path, options, renewed);
   }
 
   if (!response.ok) {

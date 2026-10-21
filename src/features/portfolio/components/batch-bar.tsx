@@ -20,7 +20,7 @@ export function BatchBar({ count, plan, notes, pending, onPublish, onUnpublish, 
     <div
       role="region"
       aria-label="Acciones sobre la selección"
-      className="fixed inset-x-3 bottom-[84px] z-40 mx-auto flex max-w-[860px] flex-col gap-3 rounded-2xl bg-eerie p-3 text-near-white shadow-2xl md:bottom-6 md:flex-row md:items-center md:gap-4 md:px-4 md:py-3"
+      className="fixed inset-x-3 bottom-[max(env(safe-area-inset-bottom),0.75rem)] z-40 mx-auto flex max-w-[860px] flex-col gap-3 rounded-2xl bg-eerie p-3 text-near-white shadow-2xl md:bottom-6 md:flex-row md:items-center md:gap-4 md:px-4 md:py-3"
     >
       <div className="flex items-center justify-between gap-3 md:contents">
         <p className="flex items-center gap-2.5 md:min-w-[170px]">

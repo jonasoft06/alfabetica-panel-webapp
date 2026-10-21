@@ -3,11 +3,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { dashboardKeys } from "@/features/dashboard/api/dashboard-api";
 import { projectKeys } from "@/features/projects/api/projects-api";
-import { prepareImage } from "@/core/media/prepare-image";
+import { prepareCoverImage, prepareImage } from "@/core/media/prepare-image";
 import { runUploadFlow } from "@/core/media/upload-flow";
 import { portfolioApi, portfolioKeys } from "../api/portfolio-api";
 import { changedOrders } from "../lib/portfolio-filters";
-import type { PortfolioListItem } from "@/contracts/portfolio";
+import { PORTFOLIO_COVER_SIZE, type PortfolioListItem } from "@/contracts/portfolio";
 
 /** Refreshes everything that shows portfolio state (this module, Proyectos lists, Resumen). */
 function useInvalidate() {
@@ -85,13 +85,18 @@ export function useSaveOrder() {
   });
 }
 
-/** Cover: prepare (WebP) → POST cover → PUT bytes → PATCH confirm. */
+/**
+ * Cover: prepare (WebP, cropped to the exact size the API requires) → POST cover → PUT bytes → PATCH confirm.
+ * panel-api answers 409 COVER_ALREADY_EXISTS while a cover is set, so a replacement deletes the current
+ * one first (after the new image is ready, to keep the window without cover short).
+ */
 export function useUploadCover() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: async ({ projectId, file, alt }: { projectId: string; file: File; alt?: string }) => {
-      const image = await prepareImage(file);
+    mutationFn: async ({ projectId, file, alt, replaceMediaId }: { projectId: string; file: File; alt?: string; replaceMediaId?: string }) => {
+      const image = await prepareCoverImage(file, PORTFOLIO_COVER_SIZE);
       try {
+        if (replaceMediaId) await portfolioApi.deleteMedia(replaceMediaId);
         return await runUploadFlow({
           blob: image.blob,
           mimeType: image.mimeType,

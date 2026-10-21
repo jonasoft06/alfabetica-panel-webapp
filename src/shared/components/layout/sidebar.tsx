@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, navItemFor } from "@/config/navigation";
+import { navItemFor, navItemsFor, UPCOMING_LABEL } from "@/config/navigation";
+import { useRuntimeConfig } from "@/core/runtime/runtime-config";
 import { cn } from "@/shared/lib/cn";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/tooltip";
-import { BrandMark } from "./brand-mark";
+import { BrandLogo } from "./brand-mark";
 
 /** Desktop navigation rail (88px) that can expand to show labels. */
 export function Sidebar({ expanded }: { expanded: boolean }) {
   const pathname = usePathname();
   const active = navItemFor(pathname);
+  const items = navItemsFor(useRuntimeConfig().mockOnly);
 
   return (
     <aside
@@ -20,11 +22,11 @@ export function Sidebar({ expanded }: { expanded: boolean }) {
       )}
     >
       <div className={cn("mb-10 flex items-center gap-3", expanded ? "px-1" : "justify-center")}>
-        <BrandMark className="size-9 text-eerie" />
+        <BrandLogo className="size-9" loading="eager" />
         {expanded && <span className="font-display text-lg font-bold">Alfabética</span>}
       </div>
       <nav aria-label="Módulos" className="flex flex-col gap-2">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const isActive = item.key === active.key;
           const Icon = item.icon;
           const link = (
@@ -43,7 +45,14 @@ export function Sidebar({ expanded }: { expanded: boolean }) {
                 <Icon className="size-5" strokeWidth={1.75} />
                 {item.upcoming && <span aria-hidden className="absolute -top-1 -right-1.5 size-2 rounded-full bg-tan-sun" />}
               </span>
-              {expanded && <span className="truncate">{item.label}</span>}
+              {expanded ? (
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate">{item.label}</span>
+                  {item.upcoming && <span className="text-[10px] font-extrabold text-tan-sun-dark">{UPCOMING_LABEL}</span>}
+                </span>
+              ) : (
+                item.upcoming && <span className="sr-only">{UPCOMING_LABEL}</span>
+              )}
             </Link>
           );
           return expanded ? (
@@ -51,7 +60,7 @@ export function Sidebar({ expanded }: { expanded: boolean }) {
           ) : (
             <Tooltip key={item.key}>
               <TooltipTrigger asChild>{link}</TooltipTrigger>
-              <TooltipContent side="right">{item.label}</TooltipContent>
+              <TooltipContent side="right">{item.upcoming ? `${item.label} · ${UPCOMING_LABEL}` : item.label}</TooltipContent>
             </Tooltip>
           );
         })}

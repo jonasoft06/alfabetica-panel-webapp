@@ -1,5 +1,5 @@
 import "server-only";
-import type { CreateMediaRequest, MediaScope, ProjectMediaResponse } from "@/contracts/media";
+import type { CreateMediaRequest, MediaScope, ProjectGalleryResponse, ProjectMediaResponse } from "@/contracts/media";
 import type { PermissionKey } from "@/contracts/auth";
 import { db } from "../db";
 import { requireUser } from "../guards";
@@ -18,21 +18,36 @@ function assertScope(permissions: string[], scope: MediaScope) {
   if (!permissions.includes(permission)) throw forbidden(`Missing required permission(s): ${permission}`);
 }
 
-/** Mirrors media.controller.ts plus the proposed GET /projects/:id/media. */
+/** Mirrors media.controller.ts. */
 export function registerMedia(router: MockRouter) {
-  // TODO(api): proposed endpoint — "Ruta siguiente bloque", step 1.
+  // Gallery only (cover excluded). Like the API's ValidationPipe (forbidNonWhitelisted), any other query param is a 400.
   router.get("projects/:id/media", (req) => {
     requireUser(req);
+    const extra = [...req.query.keys()].filter((key) => key !== "scope");
+    if (extra.length) throw badRequest(extra.map((key) => `property ${key} should not exist`));
     const project = findActiveProject(req.params.id);
     const scope = req.query.get("scope") as MediaScope | null;
     if (!scope || !SCOPES.includes(scope)) throw badRequest(["scope must be one of the following values: PORTFOLIO, PUBLICATION"]);
     const facet = scope === "PORTFOLIO" ? db().portfolios.find((p) => p.projectId === project.id) : db().publications.find((p) => p.projectId === project.id);
     if (!facet) throw notFound(`Project has no ${scope.toLowerCase()}`);
-    const gallery = db()
-      .media.filter((m) => m.projectId === project.id && m.scope === scope && m.status === "CONFIRMED" && m.type === "IMAGE" && m.displayOrder !== null)
+    const items = db()
+      .media.filter(
+        (m) =>
+          m.projectId === project.id &&
+          m.scope === scope &&
+          m.status === "CONFIRMED" &&
+          m.type === "IMAGE" &&
+          m.displayOrder !== null &&
+          m.id !== facet.coverMediaId,
+      )
       .sort((a, b) => a.displayOrder! - b.displayOrder! || a.createdAt.localeCompare(b.createdAt))
       .map(toMediaItem);
-    const body: ProjectMediaResponse = { scope, cover: mediaById(facet.coverMediaId), gallery };
+    if (scope === "PUBLICATION") {
+      // Tienda (mock-only, not migrated yet) still reads the old proposed shape with the cover inline.
+      const legacy: ProjectMediaResponse = { scope, cover: mediaById(facet.coverMediaId), gallery: items };
+      return json(legacy);
+    }
+    const body: ProjectGalleryResponse = { scope, items };
     return json(body);
   });
 

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { homePath, isMockOnly } from "@/config/api-modes";
 import { REFRESH_TOKEN_COOKIE } from "@/contracts/auth";
 
 /** Panel routes that require a session. */
@@ -19,7 +20,7 @@ export function proxy(request: NextRequest) {
   }
 
   if ((pathname === "/login" && hasSession && !request.nextUrl.searchParams.has("expired")) || pathname === "/") {
-    return NextResponse.redirect(new URL(hasSession ? "/resumen" : "/login", request.url));
+    return NextResponse.redirect(new URL(hasSession ? homePath(isMockOnly()) : "/login", request.url));
   }
 
   return NextResponse.next();

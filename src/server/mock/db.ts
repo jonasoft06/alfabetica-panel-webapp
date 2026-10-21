@@ -1,6 +1,7 @@
 import "server-only";
 import type { PermissionKey } from "@/contracts/auth";
 import type { MediaScope, MediaStatus, MediaType } from "@/contracts/media";
+import type { BookType, ProductionStatus } from "@/contracts/production";
 import type { PublicationType } from "@/contracts/publication";
 import type { UserStatus } from "@/contracts/users";
 import { seed } from "./data/seed";
@@ -103,22 +104,26 @@ export interface MediaRecord {
   createdAt: string;
   confirmedAt: string | null;
 }
-export interface StageRecord {
+export interface PhaseRecord {
   id: string;
-  key: string;
-  clientLabel: string;
-  clientDescription: string | null;
+  code: string;
+  label: string;
   sortOrder: number;
-  clickupStatusMatch: string[];
 }
+/** Mirrors model Production: ClickUp-derived fields are written only by link/sync. */
 export interface ProductionRecord {
   id: string;
   projectId: string;
   publicCode: string;
+  authorName: string | null;
   clickupListId: string | null;
-  startDate: string | null;
-  estimatedTotalDays: number | null;
-  currentStageId: string | null;
+  bookType: BookType | null;
+  status: ProductionStatus;
+  currentPhaseCode: string | null;
+  currentStageName: string | null;
+  /** "yyyy-mm-dd" */
+  currentStageDueDate: string | null;
+  /** "yyyy-mm-dd" */
   estimatedEndDate: string | null;
   lastSyncedAt: string | null;
   createdAt: string;
@@ -137,9 +142,9 @@ export interface MockDb {
   publications: PublicationRecord[];
   sections: SectionRecord[];
   media: MediaRecord[];
-  stages: StageRecord[];
+  phases: PhaseRecord[];
   productions: ProductionRecord[];
-  settings: { portfolioMaxItems: number; lastClickupSyncAt: string | null };
+  settings: { portfolioMaxItems: number };
   accessTokens: Map<string, SessionRecord>;
   refreshTokens: Map<string, SessionRecord>;
   /** Bytes uploaded through the simulated presigned URLs. */

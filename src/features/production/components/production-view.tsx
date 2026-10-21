@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowDownIcon, ArrowUpIcon, FlaskConicalIcon, LockIcon, RefreshCwIcon } from "lucide-react";
-import type { ProductionListItem } from "@/contracts/production";
+import { ArrowDownIcon, ArrowUpIcon, LockIcon } from "lucide-react";
+import { PRODUCTION_STATUSES, type ProductionListItem } from "@/contracts/production";
 import { usePermission } from "@/core/auth/session-provider";
 import { FilterChips, type FilterOption } from "@/shared/components/data/filter-chips";
 import { Pagination, usePagination } from "@/shared/components/data/pagination";
@@ -10,48 +10,38 @@ import { SearchInput } from "@/shared/components/data/search-input";
 import { SpineCard, SpineCardHeader } from "@/shared/components/data/spine-card";
 import { EmptyState } from "@/shared/components/feedback/empty-state";
 import { ErrorState } from "@/shared/components/feedback/error-state";
-import { notify } from "@/shared/components/feedback/notify";
 import { ReadOnlyBanner } from "@/shared/components/feedback/read-only-banner";
 import { usePageSubtitle } from "@/shared/components/layout/page-meta";
-import { formatRelative, plural } from "@/shared/lib/format";
+import { plural } from "@/shared/lib/format";
 import { Button } from "@/shared/ui/button";
-import { useProductions, useProductionStages, useSyncProductions } from "../hooks/use-production";
-import { filterProductions, type LinkFilter, type ProductionSort } from "../lib/production-filters";
+import { useProductionPhases, useProductions } from "../hooks/use-production";
+import { filterProductions, type ProductionSort, type StatusFilter } from "../lib/production-filters";
+import { STATUS_LABELS } from "../lib/production-labels";
 import { ProductionFormModal } from "./production-form-modal";
 import { ProductionList, ProductionListSkeleton } from "./production-list";
+
+const STATUS_DOT = { NOT_STARTED: "bg-eerie/30", IN_PRODUCTION: "bg-bubblegum-dark", FINISHED: "bg-turquoise" } as const;
 
 export function ProductionView() {
   const canWrite = usePermission("production");
   const { data, error, isPending, refetch } = useProductions();
-  const { data: stages = [] } = useProductionStages();
-  const sync = useSyncProductions();
+  const { data: phases = [] } = useProductionPhases();
 
   const [query, setQuery] = useState("");
-  const [link, setLink] = useState<LinkFilter>("all");
-  const [sort, setSort] = useState<ProductionSort>("stage-asc");
-  const [editing, setEditing] = useState<ProductionListItem | null>(null);
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [sort, setSort] = useState<ProductionSort>("delivery-asc");
+  const [opened, setOpened] = useState<ProductionListItem | null>(null);
 
-  const items = useMemo(() => data?.items ?? [], [data]);
-  const filtered = useMemo(() => filterProductions(items, { query, link, sort }), [items, query, link, sort]);
-  const pagination = usePagination(filtered, 10, `${query}|${link}|${sort}`);
-  const linkedCount = items.filter((p) => p.clickupListId).length;
-  usePageSubtitle(data ? `${plural(items.length, "producción", "producciones")} · ${plural(linkedCount, "enlazada")} con ClickUp` : null);
+  const items = useMemo(() => data ?? [], [data]);
+  const filtered = useMemo(() => filterProductions(items, { query, status, sort }), [items, query, status, sort]);
+  const pagination = usePagination(filtered, 10, `${query}|${status}|${sort}`);
+  const count = (s: ProductionListItem["status"]) => items.filter((p) => p.status === s).length;
+  usePageSubtitle(data ? `${plural(items.length, "producción", "producciones")} · ${count("IN_PRODUCTION")} en producción` : null);
 
-  const filters: FilterOption<LinkFilter>[] = [
+  const filters: FilterOption<StatusFilter>[] = [
     { value: "all", label: "Todas" },
-    { value: "linked", label: "Enlazadas", count: data ? linkedCount : undefined },
-    { value: "unlinked", label: "Sin enlace", count: data ? items.length - linkedCount : undefined },
+    ...PRODUCTION_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s], dot: STATUS_DOT[s], count: data ? count(s) : undefined })),
   ];
-
-  const runSync = () =>
-    sync.mutate(undefined, {
-      onSuccess: ({ updated }) =>
-        notify.success(
-          "Sincronización completa",
-          updated ? `${plural(updated, "producción cambió", "producciones cambiaron")} de etapa.` : "Todo estaba al día; ninguna etapa cambió.",
-        ),
-      onError: (e) => notify.error(e, "No se pudo actualizar desde ClickUp"),
-    });
 
   const isEmptyCatalog = !!data && items.length === 0;
 
@@ -61,35 +51,23 @@ export function ProductionView() {
         <SearchInput
           value={query}
           onValueChange={setQuery}
-          placeholder="Buscar por título o código…"
+          placeholder="Buscar por título, autor o código…"
           className="lg:w-[330px]"
           aria-label="Buscar producciones"
         />
         <span aria-hidden className="hidden h-7 w-px bg-border lg:block" />
-        <FilterChips options={filters} value={link} onChange={setLink} label="Filtrar por enlace con ClickUp" className="flex-1" />
-        <span
-          className="inline-flex h-8 items-center gap-1.5 self-start rounded-full bg-muted px-3 text-[11px] font-bold text-muted-foreground lg:self-auto"
-          title="Esta vista usa datos de muestra hasta que el API de producción esté lista."
-        >
-          <FlaskConicalIcon className="size-3.5" /> Vista previa · pendiente de API
-        </span>
+        <FilterChips options={filters} value={status} onChange={setStatus} label="Filtrar por estado" className="flex-1" />
       </div>
 
       {!canWrite && <ReadOnlyBanner moduleLabel="Producción" />}
 
       <SpineCard>
         <SpineCardHeader
-          title="Producciones en curso"
+          title="Producciones"
           description={
-            data ? (
-              <>
-                {plural(filtered.length, "producción", "producciones")}
-                {filtered.length !== items.length ? ` de ${items.length}` : ""} · Última sincronización:{" "}
-                {data.lastSyncedAt ? formatRelative(data.lastSyncedAt).toLowerCase() : "nunca"}
-              </>
-            ) : (
-              "Cargando…"
-            )
+            data
+              ? `${plural(filtered.length, "producción", "producciones")}${filtered.length !== items.length ? ` de ${items.length}` : ""} · abre una para capturar su avance o vincularla con ClickUp`
+              : "Cargando…"
           }
           actions={
             <>
@@ -97,17 +75,10 @@ export function ProductionView() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSort((s) => (s === "stage-asc" ? "stage-desc" : "stage-asc"))}
-                  aria-label={`Ordenar por etapa ${sort === "stage-asc" ? "descendente" : "ascendente"}`}
+                  onClick={() => setSort((s) => (s === "delivery-asc" ? "delivery-desc" : "delivery-asc"))}
+                  aria-label={`Ordenar por término estimado ${sort === "delivery-asc" ? "descendente" : "ascendente"}`}
                 >
-                  Etapa {sort === "stage-asc" ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
-                </Button>
-              )}
-              {canWrite && (
-                <Button size="sm" onClick={runSync} disabled={sync.isPending || isPending} aria-busy={sync.isPending}>
-                  <RefreshCwIcon className={sync.isPending ? "animate-spin" : undefined} />
-                  <span className="hidden sm:inline">{sync.isPending ? "Sincronizando…" : "Actualizar desde ClickUp"}</span>
-                  <span className="sm:hidden">{sync.isPending ? "…" : "Actualizar"}</span>
+                  Término {sort === "delivery-asc" ? <ArrowUpIcon className="size-3" /> : <ArrowDownIcon className="size-3" />}
                 </Button>
               )}
               {!canWrite && (
@@ -125,19 +96,18 @@ export function ProductionView() {
         ) : isEmptyCatalog ? (
           <EmptyState
             title="Aún no hay producciones"
-            description="Los proyectos con la relación Producción aparecerán aquí. Agrégala desde Proyectos para empezar a dar seguimiento y enlazarla con ClickUp."
-            footnote="Vista previa con datos de muestra."
+            description="Los proyectos con la relación Producción aparecerán aquí. Agrégala desde Proyectos para empezar a dar seguimiento y vincularla con ClickUp."
           />
         ) : filtered.length === 0 ? (
           <EmptyState
             title="Ninguna producción coincide"
-            description={query ? `No encontramos resultados para “${query}”. Prueba con otro título o código.` : "No hay producciones con este filtro."}
+            description={query ? `No encontramos resultados para “${query}”. Prueba con otro título, autor o código.` : "No hay producciones con este estado."}
             action={
               <Button
                 variant="outline"
                 onClick={() => {
                   setQuery("");
-                  setLink("all");
+                  setStatus("all");
                 }}
               >
                 Limpiar búsqueda y filtros
@@ -146,7 +116,7 @@ export function ProductionView() {
           />
         ) : (
           <>
-            <ProductionList items={pagination.pageItems} stages={stages} canWrite={canWrite} onEdit={setEditing} />
+            <ProductionList items={pagination.pageItems} phases={phases} canWrite={canWrite} onOpen={setOpened} />
             <Pagination
               page={pagination.page}
               pageCount={pagination.pageCount}
@@ -157,7 +127,7 @@ export function ProductionView() {
         )}
       </SpineCard>
 
-      <ProductionFormModal target={editing} stages={stages} canWrite={canWrite} onClose={() => setEditing(null)} />
+      <ProductionFormModal target={opened} phases={phases} canWrite={canWrite} onClose={() => setOpened(null)} />
     </div>
   );
 }

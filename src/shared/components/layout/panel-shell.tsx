@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { navItemFor } from "@/config/navigation";
 import { useSession } from "@/core/auth/session-provider";
-import { BrandMark } from "./brand-mark";
+import { Button } from "@/shared/ui/button";
+import { BrandLogo } from "./brand-mark";
 import { Masthead } from "./masthead";
-import { MobileBottomNav, MobileTopBar } from "./mobile-nav";
+import { MobileTopBar } from "./mobile-nav";
 import { PageMetaProvider } from "./page-meta";
 import { Sidebar } from "./sidebar";
 
@@ -48,10 +49,22 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
       return !value;
     });
 
+  if (status === "unavailable") {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center" role="alert">
+        <BrandLogo className="size-12" loading="eager" />
+        <p className="max-w-sm text-sm text-muted-foreground">No pudimos conectar con el servidor. Tu sesión sigue activa; revisa tu red e intenta de nuevo.</p>
+        <Button variant="outline" onClick={() => void bootstrap()}>
+          Reintentar
+        </Button>
+      </div>
+    );
+  }
+
   if (status !== "authenticated") {
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4" role="status" aria-live="polite">
-        <BrandMark className="size-12 animate-pulse text-eerie" />
+        <BrandLogo className="size-12 animate-pulse" loading="eager" />
         <p className="text-sm text-muted-foreground">Abriendo tu espacio de trabajo…</p>
       </div>
     );
@@ -64,11 +77,10 @@ export function PanelShell({ children }: { children: React.ReactNode }) {
         <div className="flex min-w-0 flex-1 flex-col md:gap-4 md:py-[18px] md:pr-[18px]">
           <Masthead onToggleSidebar={toggle} />
           <MobileTopBar />
-          <main id="contenido" className="flex-1 px-4 pt-4 pb-28 md:rounded-3xl md:bg-card/60 md:p-6 md:pb-6 md:shadow-card">
+          <main id="contenido" className="flex-1 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+6rem)] md:rounded-3xl md:bg-card/60 md:p-6 md:pb-6 md:shadow-card">
             {children}
           </main>
         </div>
-        <MobileBottomNav />
       </div>
     </PageMetaProvider>
   );

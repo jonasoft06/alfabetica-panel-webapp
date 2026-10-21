@@ -2,7 +2,7 @@
 
 import { CheckIcon, InfoIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
-import { describeError } from "@/core/http/api-error";
+import { describeError, type ErrorMessages } from "@/core/http/api-error";
 
 type Action = { label: string; onClick: () => void };
 
@@ -20,6 +20,10 @@ export const notify = {
       duration: undo ? 8000 : 6000,
     }),
   info: (title: string, description?: string) => toast(title, { description, icon: icon(<InfoIcon className="size-4" />, "text-tan-sun") }),
-  error: (error: unknown, title = "No se pudo completar la acción") =>
-    toast(title, { description: describeError(error), icon: icon(<TriangleAlertIcon className="size-4" />, "text-tangerine") }),
+  /** `messages`: Spanish text per error code, or a ready description that replaces the generic one. */
+  error: (error: unknown, title = "No se pudo completar la acción", messages?: ErrorMessages | string) =>
+    toast(title, {
+      description: typeof messages === "string" ? messages : describeError(error, messages),
+      icon: icon(<TriangleAlertIcon className="size-4" />, "text-tangerine"),
+    }),
 };

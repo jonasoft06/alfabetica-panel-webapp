@@ -5,16 +5,22 @@ import { PencilIcon } from "lucide-react";
 import type { ProjectDetail } from "@/contracts/projects";
 import { portfolioApi, portfolioKeys } from "@/features/portfolio/api/portfolio-api";
 import { productionApi, productionKeys } from "@/features/production/api/production-api";
+import {
+  DATE_TBD as PRODUCTION_DATE_TBD,
+  STATUS_LABELS as PRODUCTION_STATUS_LABELS,
+  STATUS_TONES as PRODUCTION_STATUS_TONES,
+} from "@/features/production/lib/production-labels";
 import { publicationApi, publicationKeys } from "@/features/store/api/publication-api";
 import { CoverThumb } from "@/shared/components/data/cover-thumb";
 import { ErrorState } from "@/shared/components/feedback/error-state";
 import { cn } from "@/shared/lib/cn";
-import { formatCurrency, formatDate, formatRelative } from "@/shared/lib/format";
+import { formatCalendarDate, formatCurrency, formatDate, formatRelative } from "@/shared/lib/format";
 import { RELATIONS, type RelationKey } from "@/shared/lib/relations";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Modal, ModalBody, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from "@/shared/ui/modal";
 import { Skeleton } from "@/shared/ui/skeleton";
+import { useRuntimeConfig } from "@/core/runtime/runtime-config";
 import { useProject } from "../hooks/use-projects";
 
 function RelationBlock({ relation, badge, rows }: { relation: RelationKey; badge?: React.ReactNode; rows: [string, React.ReactNode][] }) {
@@ -88,11 +94,11 @@ function PublicationBlock({ projectId }: { projectId: string }) {
 
 function ProductionBlock({ project }: { project: ProjectDetail }) {
   const { data, isError } = useQuery({ queryKey: productionKeys.detail(project.id), queryFn: () => productionApi.detail(project.id), retry: false });
-  const linked = !!data?.clickupListId;
+  const pending = isError ? "—" : "…";
   return (
     <RelationBlock
       relation="production"
-      badge={data && <Badge tone={linked ? "turquoise" : "neutral"}>{linked ? "Enlazado" : "Sin enlace"}</Badge>}
+      badge={data && <Badge tone={PRODUCTION_STATUS_TONES[data.status]}>{PRODUCTION_STATUS_LABELS[data.status]}</Badge>}
       rows={[
         [
           "Código al público",
@@ -100,7 +106,8 @@ function ProductionBlock({ project }: { project: ProjectDetail }) {
             {project.production!.publicCode}
           </span>,
         ],
-        ["Lista en ClickUp", data ? linked ? <span className="font-mono text-xs">#{data.clickupListId}</span> : "—" : isError ? "—" : "…"],
+        ["Fase", data ? (data.currentPhase?.label ?? "—") : pending],
+        ["Término estimado", data ? formatCalendarDate(data.estimatedEndDate, PRODUCTION_DATE_TBD) : pending],
       ]}
     />
   );
@@ -108,8 +115,8 @@ function ProductionBlock({ project }: { project: ProjectDetail }) {
 
 function ProjectCover({ project }: { project: ProjectDetail }) {
   const { data } = useQuery({
-    queryKey: portfolioKeys.media(project.id),
-    queryFn: () => portfolioApi.media(project.id),
+    queryKey: portfolioKeys.cover(project.id),
+    queryFn: () => portfolioApi.cover(project.id),
     enabled: !!project.portfolio?.coverMediaId,
   });
   return <CoverThumb cover={data?.cover} title={project.title} emptyTint="bg-turquoise-dark text-near-white" className="w-16 rounded-[6px] shadow-md" />;
@@ -131,6 +138,7 @@ export function ProjectDetailModal({
   onDelete: (project: { id: string; title: string }) => void;
 }) {
   const { data: project, error, isPending, refetch } = useProject(projectId);
+  const { mockOnly } = useRuntimeConfig();
   const hidden = projectId ? hiddenRelations(projectId) : [];
   const show = (key: RelationKey) => project?.[key] && !hidden.includes(key);
 
@@ -196,7 +204,9 @@ export function ProjectDetailModal({
                 <h3 className="eyebrow">Relaciones activas</h3>
                 <div className="mt-2.5 space-y-2.5">
                   {show("portfolio") && <PortfolioBlock project={project} />}
-                  {show("publication") && <PublicationBlock projectId={project.id} />}
+                  {show("publication") &&
+                    // The store only runs on the mock server: outside demo mode, no publication requests.
+                    (mockOnly ? <PublicationBlock projectId={project.id} /> : <RelationBlock relation="publication" rows={[["Estado", "Próximamente"]]} />)}
                   {show("production") && <ProductionBlock project={project} />}
                   {!show("portfolio") && !show("publication") && !show("production") && (
                     <p className="text-sm text-muted-foreground">Este proyecto aún no tiene relaciones.</p>

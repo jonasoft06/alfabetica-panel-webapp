@@ -3,10 +3,10 @@ import { PERMISSION_KEYS, type PermissionKey } from "@/contracts/auth";
 import type { InviteUserRequest, Permission, UserListItem, UserStatus } from "@/contracts/users";
 import { db, type UserRecord } from "../db";
 import { requirePermission, requireUser } from "../guards";
-import { badRequest, conflict, json, notFound, type MockRequest } from "../http";
+import { badRequest, conflict, json, notFound, reasonError, type MockRequest } from "../http";
 import type { MockRouter } from "../router";
 
-/* TODO(api): every route here is proposed (deferred "Gestión de usuarios"). */
+/* Mirrors users.controller.ts. TODO(api): PUT /users/:id/permissions and the invitation resend are still proposed. */
 
 const CORPORATE_DOMAIN = "alfabetica.com.mx";
 const INVITATION_VALID_MS = 7 * 24 * 3600 * 1000;
@@ -34,6 +34,7 @@ const toItem = (u: UserRecord): UserListItem => {
     lastLogin: u.lastLogin,
     invitedAt: u.invitedAt,
     invitationExpiresAt: u.invitationExpiresAt,
+    createdAt: u.createdAt,
   };
 };
 
@@ -43,7 +44,7 @@ function parsePermissions(value: unknown): PermissionKey[] {
   if (!Array.isArray(value)) throw badRequest("permissions must be an array");
   const known = new Set<string>(PERMISSION_KEYS);
   const invalid = value.filter((k) => typeof k !== "string" || !known.has(k));
-  if (invalid.length) throw badRequest(`Unknown permission key(s): ${invalid.join(", ")}`);
+  if (invalid.length) throw reasonError(400, "UNKNOWN_PERMISSIONS", { unknown: invalid });
   return [...new Set(value as PermissionKey[])];
 }
 
@@ -51,12 +52,12 @@ function parseInvite(body: unknown): InviteUserRequest {
   if (!isRecord(body)) throw badRequest("Invalid body");
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!EMAIL_RE.test(email)) throw badRequest(["email must be an email"]);
-  if (!email.endsWith(`@${CORPORATE_DOMAIN}`)) throw badRequest(`El correo debe pertenecer al dominio ${CORPORATE_DOMAIN}`);
+  if (email.split("@")[1] !== CORPORATE_DOMAIN) throw badRequest("Email domain is not allowed");
   const name = typeof body.name === "string" ? body.name.trim() : "";
   if (name.length > 120) throw badRequest(["name must be shorter than or equal to 120 characters"]);
   const roleId = typeof body.roleId === "string" && body.roleId ? body.roleId : undefined;
-  if (roleId && !db().roles.some((r) => r.id === roleId)) throw badRequest("Unknown roleId");
-  return { email, name: name || undefined, roleId, permissions: parsePermissions(body.permissions ?? []) };
+  if (roleId && !db().roles.some((r) => r.id === roleId)) throw badRequest("Role not found");
+  return { email, name: name || undefined, roleId: roleId!, permissions: parsePermissions(body.permissions ?? []) };
 }
 
 const activeHolders = () => db().users.filter((u) => u.status === "ACTIVE" && u.permissions.includes("users"));
@@ -86,7 +87,7 @@ export function registerCollaborators(router: MockRouter) {
   router.post("users/invitations", (req) => {
     requirePermission(req, "users");
     const body = parseInvite(req.body);
-    if (db().users.some((u) => u.email.toLowerCase() === body.email)) throw conflict("Ya existe un colaborador con ese correo");
+    if (db().users.some((u) => u.email.toLowerCase() === body.email)) throw conflict("A user with this email already exists");
     const now = Date.now();
     const record: UserRecord = {
       id: crypto.randomUUID(),
@@ -124,19 +125,15 @@ export function registerCollaborators(router: MockRouter) {
     if (!isRecord(req.body) || (req.body.status !== "ACTIVE" && req.body.status !== "INACTIVE"))
       throw badRequest(["status must be one of the following values: ACTIVE, INACTIVE"]);
     const status: Exclude<UserStatus, "INVITED"> = req.body.status;
-    if (status === "INACTIVE") {
-      if (target.id === me.id) throw badRequest("No puedes desactivarte a ti mismo.");
-      if (isLastHolder(target)) throw badRequest("No puedes desactivar a la única persona activa con acceso a Colaboradores.");
-      target.status = "INACTIVE";
-    } else {
-      // Someone who never signed in goes back to INVITED (with a fresh invitation).
-      if (target.lastLogin) target.status = "ACTIVE";
-      else {
-        target.status = "INVITED";
-        target.invitedAt = new Date().toISOString();
-        target.invitationExpiresAt = new Date(Date.now() + INVITATION_VALID_MS).toISOString();
-      }
+    if (target.status === status) return json(toItem(target));
+    // Activating by hand needs an account that already signed in once (Firebase-linked); lastLogin stands in for that here.
+    if (status === "ACTIVE" && !target.lastLogin) throw reasonError(409, "USER_NOT_LINKED");
+    // The protections only apply to ACTIVE users: INACTIVE on an INVITED user cancels the invitation.
+    if (status === "INACTIVE" && target.status === "ACTIVE") {
+      if (target.id === me.id) throw reasonError(409, "USER_SELF_DEACTIVATION");
+      if (isLastHolder(target)) throw reasonError(409, "LAST_USERS_ADMIN");
     }
+    target.status = status;
     return json(toItem(target));
   });
 

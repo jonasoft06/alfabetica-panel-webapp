@@ -6,70 +6,63 @@ origen: alfabetica-panel-webapp
 
 # Anotaciones para panel-api (desde panel-webapp)
 
-> El panel-webapp **no modificó** el panel-api. Esta nota reúne lo que el front necesita o detectó, para revisarlo y decidir. Cada punto indica prioridad: 🔴 bloquea pasar un módulo a `real` · 🟡 recomendado · 🟢 opcional.
+> El panel-webapp **no modificó** el panel-api. Esta nota reúne lo que el front necesita o detectó, para revisarlo y decidir. Cada punto indica prioridad: 🔴 bloquea una función en `real` · 🟡 recomendado · 🟢 opcional.
+>
+> Estado (2026-10-20): auth, usuarios, proyectos, media (scope PORTFOLIO), portafolio y producción corren contra el panel-api local. Tienda y Resumen siguen en mock.
 
 ## 1. Infraestructura y seguridad
 
 | # | Punto | Prioridad | Detalle |
 |---|---|---|---|
-| 1.1 | **CORS no configurado** | 🟢 | `main.ts` no llama `enableCors`. El panel no lo necesita porque llama al API a través de su BFF (mismo origen). Solo hará falta si otro front (p. ej. `alfabetica-webapp`) llama directo desde el navegador. |
-| 1.2 | **Dominio de la cookie** | 🟡 | La cookie `refreshToken` no define `domain`/`path`; vía BFF queda en el dominio del panel (correcto). Mantenerlo así. En producción se envía con `secure`. |
-| 1.3 | **Rate limit en `/auth/login` y `/auth/refresh`** | 🟡 | No hay throttling. Sugerencia: `@nestjs/throttler` (p. ej. 10 req/min por IP en auth). El BFF ya reenvía `x-forwarded-for`; activar `app.set('trust proxy', 1)` detrás de Dokku/Cloudflare. |
-| 1.4 | **Headers de seguridad** | 🟢 | Sugerencia: `helmet()` en `main.ts`. |
-| 1.5 | **Rotación de refresh token** | 🟢 | Hoy no rota (decisión documentada). Revisar a futuro: rotar en cada `/auth/refresh` y revocar el anterior. |
-| 1.6 | **Break-glass superadmin** | 🟡 | Sigue sin implementarse (`SUPERADMIN_FIREBASE_UID` solo validado). `POST /media/cleanup-pending` usa `settings` temporalmente. |
-| 1.7 | **Seed de `SiteSettings`** | 🔴 (prod) | Pendiente antes del deploy; el panel lee `portfolioMaxItems` en Portafolio y Resumen. |
-| 1.8 | **CORS de Spaces** | 🔴 (subidas) | El navegador hace `PUT` directo a la URL prefirmada con `Content-Type`. El bucket debe permitir `PUT` desde el dominio del panel (y `localhost:3000` en desarrollo) con header `Content-Type`. |
-| 1.9 | **CLAUDE.md desactualizado** | 🟢 | Habla de `role_permissions` y de `alfabetica-panel-web`; el schema real usa `user_permissions` (permisos por usuario) y el repo se llama `alfabetica-panel-webapp`. |
+| 1.1 | **CORS de Spaces** | 🔴 (subidas) | Verificado el 2026-10-20: el preflight `OPTIONS` a `alfabetica-media.sfo3.digitaloceanspaces.com` responde **403 sin `Access-Control-Allow-Origin`** para `http://localhost:3000` (PUT y GET). El bucket no tiene reglas CORS. El navegador hace `PUT` directo a la URL prefirmada con `Content-Type`, así que hoy **ninguna subida funciona** desde el panel. Agregar una regla: origen `http://localhost:3000` (y el dominio del panel), métodos `PUT`, `GET`, header `Content-Type`. |
+| 1.2 | **CORS del API** | 🟢 | `main.ts` no llama `enableCors`. El panel no lo necesita (BFF, mismo origen). Solo hará falta si otro front llama directo. |
+| 1.3 | **Dominio de la cookie** | 🟡 | `refreshToken` sin `domain`/`path`; vía BFF queda en el dominio del panel (correcto). En producción va con `secure`. |
+| 1.4 | **Rate limit en `/auth/login` y `/auth/refresh`** | 🟡 | Sin throttling. Sugerencia: `@nestjs/throttler`. El BFF reenvía `x-forwarded-for`; activar `trust proxy` detrás de Dokku/Cloudflare. |
+| 1.5 | **Headers de seguridad** | 🟢 | `helmet()` en `main.ts`. |
+| 1.6 | **Rotación de refresh token** | 🟢 | No rota (decisión documentada). El front ya renueva el access token (15 min) con un solo refresh compartido y reintenta una vez. |
+| 1.7 | **Break-glass superadmin** | 🟡 | Sin implementar. `POST /media/cleanup-pending` usa `settings` temporalmente. |
+| 1.8 | **Seed de `SiteSettings`** | 🔴 (prod) | Pendiente antes del deploy; Portafolio lee `maxItems`. |
 
-## 2. Endpoints existentes — ajustes de forma
+## 2. Forma de errores
+
+| # | Punto | Prioridad | Detalle |
+|---|---|---|---|
+| 2.1 | **`reason` vs `code`** | 🟡 | Producción y auth responden `{ statusCode, code, message }`; portafolio, portadas, media, secciones y usuarios responden `new ConflictException({ reason })`, cuyo cuerpo es **solo** `{ reason }` (sin `statusCode` ni `message`). El front acepta ambos (`ApiError.code = code ?? reason`), pero conviene migrar todo a `code` con el cuerpo completo. |
+| 2.2 | **`POST /users/invitations` sin código** | 🟡 | Dominio no permitido (400 `Email domain is not allowed`), rol inexistente (400 `Role not found`) y correo repetido (409 `A user with this email already exists`) no traen `code`. El front los distingue por estado y texto del mensaje (frágil). Sugerencia: `EMAIL_DOMAIN_NOT_ALLOWED`, `ROLE_NOT_FOUND`, `USER_EMAIL_EXISTS`. |
+
+## 3. Endpoints existentes — ajustes
 
 | # | Endpoint | Prioridad | Qué falta |
 |---|---|---|---|
-| 2.1 | `GET /projects` (`ProjectListItemDto`) | 🟡 | El listado de la maqueta muestra **subtítulo**, **descripción** y **actualizado**. Agregar `subtitle`, `description`, `updatedAt`. El front ya los trata como opcionales (sin ellos muestra menos información y ordena por `createdAt`). |
-| 2.2 | `GET /projects` | 🟢 | Sin búsqueda ni paginación: el front filtra y pagina en cliente (suficiente para el tamaño del catálogo). Si crece: `?q=&page=&pageSize=` con `{ items, total }`. |
-| 2.3 | `CreateProjectDto` | 🟢 | No admite `production`; el front crea el proyecto y luego llama `POST /projects/:id/production` (propuesto). Alternativa: agregar `production?: {}` al DTO como `portfolio`. |
-| 2.4 | `PATCH /projects/:id` | 🟢 | El front envía `null` para limpiar campos opcionales (`subtitle`, `description`, `client`, `issueYear`). Confirmar que `UpdateProjectDto` (con `@IsOptional`) lo persiste como `null`. |
+| 3.1 | `GET /projects` (`ProjectListItemDto`) | 🟡 | Agregar `subtitle`, `description`, `updatedAt`. El front los trata como opcionales (sin ellos muestra menos y ordena por `createdAt`). |
+| 3.2 | `GET /projects` | 🟢 | Sin búsqueda ni paginación; el front filtra y pagina en cliente. Si crece: `?q=&page=&pageSize=`. |
+| 3.3 | **Reemplazar portada** | 🟡 | `POST /projects/:id/portfolio/cover` responde 409 `COVER_ALREADY_EXISTS` mientras haya portada. Para "Cambiar portada" el front borra la actual (`DELETE /media/:id`) y luego sube la nueva: si la subida falla (p. ej. CORS 1.1), el título se queda sin portada. Sugerencia: permitir crear la nueva mientras exista la anterior y que `cover/confirm` haga el cambio y borre la vieja en la misma transacción. |
+| 3.4 | Tamaño exacto de portada | 🟢 | El API exige exactamente 1200 × 1600 (`COVER_INVALID_DIMENSIONS`). El front recorta al centro a ese tamaño antes de subir. Si cambia, actualizar `PORTFOLIO_COVER_SIZE` en `contracts/portfolio.ts`. |
+| 3.5 | `PUT /projects/:id/publication` | 🟡 | Limpiar un texto opcional o `compareAtPrice`: `PublicationFieldsDto` no admite `null`. El front envía `""`. (Tienda sigue en mock.) |
+| 3.6 | Reordenar portafolio | 🟢 | Un `PUT displayOrder` por título cambiado. Si se vuelve lento: `PUT /portfolios/order { projectIds }`. |
+| 3.7 | `GET /productions` | 🟢 | Arreglo plano sin `id`, `clickupListId` ni `createdAt` (el front usa `source` para el indicador Manual/ClickUp y carga el detalle al abrir). Agregar `clickupListId` permitiría buscar por lista sin abrir cada producción. |
 
-| 2.5 | `PUT /projects/:id/publication` | 🟡 | Limpiar un campo de texto opcional (formato, ISBN, colección…) o `compareAtPrice`: `PublicationFieldsDto` no admite `null`. El front envía `""`; definir si el API lo normaliza a `null` o si se acepta `null` explícito. |
-| 2.6 | `DELETE /media/:id` sobre una portada | 🟡 | El front quita la portada borrando su media. Confirmar que el API desvincula `coverMediaId` (el mock lo hace) o exponer un endpoint para quitar portada. |
-| 2.7 | `PUT /projects/:id/portfolio` | 🟢 | El mock responde 404 si el proyecto no tiene portafolio y conserva `displayOrder` al despublicar; validar que el API haga lo mismo. |
-| 2.8 | Reordenar portafolio | 🟢 | Guardar el orden hace un `PUT displayOrder` por cada título que cambió. Si se vuelve lento: `PUT /portfolios/order { projectIds }`. |
+## 4. Colaboradores
 
-## 3. Endpoints propuestos (el front ya los consume vía mock)
+| # | Punto | Prioridad | Detalle |
+|---|---|---|---|
+| 4.1 | `PUT /users/:id/permissions` | 🟡 | No existe. El front muestra "Editar permisos" deshabilitado ("Próximamente"). Contrato propuesto en `contracts/users.ts` y mock en `server/mock/handlers/collaborators.ts` (protecciones: nadie se quita `users` a sí mismo ni al último activo que lo tenga). |
+| 4.2 | Reenviar invitación | 🟡 | No existe. Propuesta: `POST /users/:id/invitation/resend` (renueva expiración; 409 si no está INVITED). Deshabilitado en el front. |
+| 4.3 | **Invitación cancelada sin salida** | 🟡 | Cancelar una invitación = `PATCH status INACTIVE`. Esa persona nunca entró, así que reactivarla da 409 `USER_NOT_LINKED`, reinvitarla da 409 (el correo existe) y no hay reenvío: queda bloqueada para siempre. Hace falta reinvitar a un usuario INACTIVE sin `firebaseUid` (o que 4.2 lo cubra). |
+| 4.4 | `roleId` opcional | 🟢 | `InviteUserDto.roleId` es opcional; el panel lo exige (decisión de producto). Decidir si el API también lo exige. |
+| 4.5 | Cambio de permisos propios | 🟢 | Con 4.1: el access token conserva los permisos anteriores hasta 15 min. Considerar incrementar `tokenVersion`. |
 
-Contratos exactos en `src/contracts/*` (marcados `@api proposed`). Mock de referencia en `src/server/mock/handlers/*`.
+## 5. Endpoints que aún no existen (el front los usa solo en mock)
 
-### Media
-- `GET /projects/:id/media?scope=PORTFOLIO|PUBLICATION` → `{ scope, cover, gallery[] }` — ya diseñado en *Ruta siguiente bloque*, paso 1. 🔴 para Portafolio y Tienda en `real`.
+- `GET /dashboard/summary` (Resumen): conteos por módulo, actividad semanal (8 semanas) y "Necesita tu atención". Fuera de demo el panel muestra "Próximamente" y entra a Proyectos.
+- Tienda completa en `real` (`GET /publications` ya existe; falta migrar el front: `GET /projects/:id/media?scope=PUBLICATION` cambió a `{ scope, items }` + `GET /projects/:id/publication/cover`).
 
-### Portafolio
-- `GET /portfolios` → `{ items: PortfolioListItem[], counts{ total, published, unpublished, withoutCover }, maxItems }`. 🔴
+## 6. Resuelto (2026-10-20)
 
-### Tienda
-- `GET /publications` → `{ items: PublicationListItem[], counts{ total, published, byType } }`. 🔴
-
-### Producción (módulo 8)
-- `POST /projects/:id/production` · `DELETE /projects/:id/production` (permiso `projects`, como las otras facetas). El `publicCode` se autogenera (`ALF-<iniciales>-<año>`).
-- `GET /productions`, `GET /production-stages`, `GET|PUT /projects/:id/production`, `POST /productions/sync` (permiso `production`).
-- `PUT` valida: `publicCode` único (sin distinguir mayúsculas) y no vacío, `clickupListId` alfanumérico de 5 a 20, fechas `yyyy-mm-dd`, `estimatedTotalDays` entero positivo, `currentStageId` existente; al cambiar `clickupListId` pone `lastSyncedAt = null`.
-- `POST /productions/sync` responde `200 { syncedAt, updated }` → usar `@HttpCode(200)` en Nest.
-- `estimatedEndDate` hoy lo calcula el front (inicio + días); podría calcularlo el API.
-
-### Colaboradores
-- `GET /users`, `POST /users/invitations`, `PUT /users/:id/permissions`, `PATCH /users/:id/status`, `GET /roles`, `GET /permissions`.
-- `POST /users/:id/invitation/resend` (renueva expiración; 409 si no está INVITED). Invitación: 400 si el dominio no es `alfabetica.com.mx`, 409 si el correo existe, vence a 7 días.
-- Lectura (`GET /users`, `/roles`, `/permissions`) abierta a cualquier sesión para mostrar la vista de solo lectura; si el API exige `users` también para leer, la pantalla mostrará el estado de error.
-- Al cambiar los propios permisos, el access token conserva los anteriores hasta el siguiente refresh (el front recarga `/users/me`). Considerar incrementar `tokenVersion` o rotar el token.
-- Protecciones contra bloqueo: nadie puede desactivarse a sí mismo ni quitarse `users`; no se puede quitar `users` al último usuario activo que lo tenga.
-
-### Resumen
-- `GET /dashboard/summary` → conteos por módulo, actividad semanal (8 semanas) y lista "Necesita tu atención". Solo agregaciones, sin tablas nuevas.
-
-## 4. Para pasar un módulo de `mock` a `real`
-
-1. `API_MODE_AUTH=real`, `NEXT_PUBLIC_AUTH_PROVIDER=firebase` y credenciales Firebase en `.env.local` (ver `firebase-identity-provider.ts`).
-2. `PANEL_API_URL=http://localhost:4000` (panel-api local).
-3. `API_MODE_PROJECTS=real` (ya existe todo lo necesario, con 2.1 como mejora).
-4. `API_MODE_MEDIA`, `API_MODE_PORTFOLIO` y `API_MODE_PUBLICATION` cuando existan los endpoints de la sección 3.
-5. Validar en Yaak y en el panel con los mismos casos que usa el mock.
+- `CreateProjectDto` acepta `production: {}`: el front crea proyecto y relaciones en una sola llamada.
+- `DELETE /media/:id` desvincula `coverMediaId` de portafolio y publicación.
+- Media: `GET /projects/:id/portfolio/cover` → `{ cover }` y `GET /projects/:id/media?scope=` → `{ scope, items }` (sin portada; cualquier otro query param → 400).
+- `GET /portfolios?status=published|unpublished` con `counts` que ignoran el filtro.
+- Producción: `GET /production-phases`, `PUT { authorName?, clickupListId?, bookType?, status?, currentPhaseCode?, currentStageDueDate?, estimatedEndDate? }` (lista solo dígitos; `null` desvincula y conserva los datos; vincular valida y sincroniza), `POST /projects/:id/production/sync`, `publicCode` `XXXX-XXXX` generado por el API, fechas de calendario `yyyy-mm-dd`.
+- Modo manual: `source` `MANUAL`/`CLICKUP` en detalle y listado; estados `NOT_STARTED | IN_PRODUCTION | FINISHED`. Los campos manuales solo se aceptan sin lista vinculada (409 `PRODUCTION_MANAGED_BY_CLICKUP`); el front aplica las mismas reglas de estado/fase que `manual-state.ts` (PUBLISHED ⇔ FINISHED, NOT_STARTED sin fase) y siempre manda estado y fase juntos; 400 `PRODUCTION_PHASE_NOT_FOUND` / `PRODUCTION_INCONSISTENT_STATE` tienen mensaje propio. Vincular y editar a mano en la misma llamada lo rechaza el API, así que el panel manda la vinculación sola (tras confirmar).
+- Usuarios: `GET /users`, `/roles`, `/permissions` (cualquier sesión), `POST /users/invitations`, `PATCH /users/:id/status`.

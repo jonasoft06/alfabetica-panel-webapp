@@ -15,12 +15,12 @@ import { usePermissionCatalog, useRoles } from "../hooks/use-collaborators";
 import {
   CORPORATE_DOMAIN,
   INVITATION_VALID_DAYS,
-  NO_ROLE,
   emptyInviteForm,
   inviteFormSchema,
   toInvitePayload,
   type InviteFormValues,
 } from "../schemas/collaborator-forms.schema";
+import { inviteErrorMessages } from "../lib/collaborator-errors";
 import { PermissionSwitchList } from "./permission-switch-list";
 
 export function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -49,7 +49,7 @@ function InviteContent({ onClose }: { onClose: () => void }) {
       notify.success("Invitación enviada", `${created.email} · vence en ${INVITATION_VALID_DAYS} días`);
       onClose();
     } catch (error) {
-      notify.error(error, "No se pudo enviar la invitación");
+      notify.error(error, "No se pudo enviar la invitación", inviteErrorMessages(error));
     }
   });
 
@@ -77,17 +77,22 @@ function InviteContent({ onClose }: { onClose: () => void }) {
             <Field label="Nombre" htmlFor={ids.name} optional error={errors.name?.message}>
               <Input id={ids.name} placeholder="Ej. Mariana Ruiz" {...register("name")} />
             </Field>
-            <Field label="Rol" htmlFor={ids.role} optional hint="Solo es una etiqueta del equipo; no da acceso por sí mismo.">
+            <Field
+              label="Rol"
+              htmlFor={ids.role}
+              required
+              error={errors.roleId?.message}
+              hint="Solo es una etiqueta del equipo; no da acceso por sí mismo."
+            >
               <Controller
                 control={control}
                 name="roleId"
                 render={({ field }) => (
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger id={ids.role}>
-                      <SelectValue placeholder="Sin rol" />
+                  <Select value={field.value} onValueChange={field.onChange} disabled={roles.isPending}>
+                    <SelectTrigger id={ids.role} aria-invalid={!!errors.roleId} onBlur={field.onBlur}>
+                      <SelectValue placeholder={roles.isPending ? "Cargando roles…" : "Elige un rol"} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NO_ROLE}>Sin rol</SelectItem>
                       {roles.data?.map((role) => (
                         <SelectItem key={role.id} value={role.id}>
                           {role.name}

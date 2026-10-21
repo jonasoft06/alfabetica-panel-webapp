@@ -11,7 +11,7 @@ import { Button } from "@/shared/ui/button";
 import { Modal, ModalBody, ModalClose, ModalContent, ModalDescription, ModalFooter, ModalHeader, ModalTitle } from "@/shared/ui/modal";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { useDeleteMedia } from "../hooks/use-portfolio-mutations";
-import { usePortfolioMedia } from "../hooks/use-portfolio";
+import { usePortfolioCover, usePortfolioGallery } from "../hooks/use-portfolio";
 import { CoverEditor } from "./cover-editor";
 import { GalleryEditor } from "./gallery-editor";
 import { ProjectInfoPanel } from "./project-info-panel";
@@ -36,7 +36,8 @@ export function PortfolioEditModal(props: PortfolioEditModalProps) {
 }
 
 function EditContent({ item, canWrite, publishedCount, maxItems }: PortfolioEditModalProps & { item: PortfolioListItem }) {
-  const media = usePortfolioMedia(item.projectId);
+  const cover = usePortfolioCover(item.projectId);
+  const gallery = usePortfolioGallery(item.projectId);
   const deleteMedia = useDeleteMedia();
   const [removeTarget, setRemoveTarget] = useState<RemoveTarget>(null);
 
@@ -70,7 +71,7 @@ function EditContent({ item, canWrite, publishedCount, maxItems }: PortfolioEdit
       <ModalBody className="bg-muted/40">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
           <div className="space-y-5">
-            {media.isPending ? (
+            {cover.isPending || gallery.isPending ? (
               <>
                 <Skeleton className="h-60 rounded-2xl" />
                 <Skeleton className="h-52 rounded-2xl" />
@@ -80,20 +81,20 @@ function EditContent({ item, canWrite, publishedCount, maxItems }: PortfolioEdit
                 <CoverEditor
                   projectId={item.projectId}
                   title={item.title}
-                  cover={media.data?.cover ?? item.cover}
+                  cover={cover.isError ? item.cover : (cover.data ?? null)}
                   canWrite={canWrite}
                   onRequestRemove={(m) => setRemoveTarget({ kind: "cover", media: m })}
                 />
                 <GalleryEditor
                   projectId={item.projectId}
                   title={item.title}
-                  gallery={media.data?.gallery ?? []}
+                  gallery={gallery.data ?? []}
                   canWrite={canWrite}
                   onRequestRemove={(m) => setRemoveTarget({ kind: "gallery", media: m })}
                 />
               </>
             )}
-            {media.isError && (
+            {(cover.isError || gallery.isError) && (
               <p role="alert" className="text-xs font-semibold text-destructive">
                 No se pudo cargar la portada y la galería. Cierra y vuelve a abrir este título.
               </p>

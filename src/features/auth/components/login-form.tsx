@@ -10,9 +10,12 @@ import { useSession } from "@/core/auth/session-provider";
 import { cn } from "@/shared/lib/cn";
 import { GoogleIcon } from "./google-icon";
 
-/** Only internal, same-site paths are accepted as post-login destinations (prevents open redirects). */
+/**
+ * Only internal, same-site paths are accepted as post-login destinations (prevents open redirects).
+ * The fallback "/" lets the proxy pick the home screen (Resumen in demo mode, Proyectos otherwise).
+ */
 function safeNext(value: string | null) {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/resumen";
+  return value && value.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 
 export function LoginForm() {
@@ -37,15 +40,15 @@ export function LoginForm() {
   };
 
   return (
-    <div className="w-full max-w-[380px]">
-      <h2 className="text-[28px] leading-tight font-extrabold">Bienvenido de vuelta</h2>
+    <div className="w-full max-w-[400px] md:max-w-[380px]">
+      <h2 className="text-2xl leading-tight font-extrabold md:text-[28px]">Bienvenido de vuelta</h2>
       <p className="mt-2 text-[15px] text-muted-foreground">Ingresa con tu cuenta de Google Workspace de Alfabética para continuar.</p>
 
       <button
         type="button"
         onClick={handleSignIn}
         disabled={pending}
-        className="mt-8 flex h-[52px] w-full items-center justify-center gap-3 rounded-xl border-[1.5px] border-border bg-card text-[15px] font-bold shadow-sm transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-turquoise/30 focus-visible:outline-none disabled:opacity-70"
+        className="mt-8 flex h-[52px] min-h-12 w-full items-center justify-center gap-3 rounded-xl border-[1.5px] border-border bg-card text-[15px] font-bold shadow-sm transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-turquoise/30 focus-visible:outline-none disabled:opacity-70"
       >
         {pending ? <LoaderCircleIcon className="size-5 animate-spin" /> : <GoogleIcon className="size-5" />}
         {pending ? "Validando tu cuenta…" : "Continuar con Google"}

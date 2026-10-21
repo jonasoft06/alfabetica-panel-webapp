@@ -1,11 +1,11 @@
 import "server-only";
-import type { CreateCoverRequest } from "@/contracts/media";
-import type { PortfolioDetail, PortfolioListItem, PortfolioListResponse, UpsertPortfolioRequest } from "@/contracts/portfolio";
+import type { CoverResponse, CreateCoverRequest } from "@/contracts/media";
+import { PORTFOLIO_COVER_SIZE, type PortfolioDetail, type PortfolioListItem, type PortfolioListResponse, type UpsertPortfolioRequest } from "@/contracts/portfolio";
 import { db, nowIso, type PortfolioRecord } from "../db";
 import { requirePermission, requireUser } from "../guards";
-import { badRequest, conflict, json, notFound } from "../http";
+import { badRequest, json, notFound, reasonError } from "../http";
 import { findActiveProject, touchProject } from "../lookups";
-import { mediaById } from "../mappers";
+import { mediaById, toProjectDetail } from "../mappers";
 import type { MockRouter } from "../router";
 import { confirmMediaRecord, createPendingMedia } from "./shared/media-records";
 
@@ -35,11 +35,13 @@ function touch(portfolio: PortfolioRecord) {
   touchProject(portfolio.projectId);
 }
 
-/** Mirrors portfolio.controller.ts (+ the proposed GET /portfolios). */
+/** Mirrors portfolio.controller.ts and portfolios.controller.ts (GET /portfolios). */
 export function registerPortfolio(router: MockRouter) {
-  // TODO(api): proposed endpoint — list of every portfolio with cover, gallery count and the site limit.
   router.get("portfolios", (req) => {
     requireUser(req);
+    const status = req.query.get("status");
+    if (status !== null && status !== "published" && status !== "unpublished")
+      throw badRequest(["status must be one of the following values: published, unpublished"]);
     const store = db();
     const items: PortfolioListItem[] = [];
     for (const portfolio of store.portfolios) {
@@ -61,8 +63,9 @@ export function registerPortfolio(router: MockRouter) {
         updatedAt: portfolio.updatedAt > project.updatedAt ? portfolio.updatedAt : project.updatedAt,
       });
     }
+    // counts ignore the filter so the summary stays stable while filtering (same as the API).
     const body: PortfolioListResponse = {
-      items,
+      items: status === null ? items : items.filter((i) => i.isPublished === (status === "published")),
       counts: {
         total: items.length,
         published: items.filter((i) => i.isPublished).length,
@@ -94,13 +97,25 @@ export function registerPortfolio(router: MockRouter) {
     return json(toPortfolioDetail(portfolio));
   });
 
+  router.get("projects/:id/portfolio/cover", (req) => {
+    requireUser(req);
+    const project = findActiveProject(req.params.id);
+    const portfolio = findPortfolio(project.id);
+    const media = db().media.find((m) => m.id === portfolio.coverMediaId && m.status === "CONFIRMED");
+    const body: CoverResponse = { cover: media ? mediaById(media.id) : null };
+    return json(body);
+  });
+
+  // Same rules as cover.service.ts: one cover at a time (delete it to replace it), WebP, exact size.
   router.post("projects/:id/portfolio/cover", (req) => {
     requirePermission(req, "portfolio");
     const project = findActiveProject(req.params.id);
-    findPortfolio(project.id);
+    const portfolio = findPortfolio(project.id);
+    if (portfolio.coverMediaId) throw reasonError(409, "COVER_ALREADY_EXISTS");
     const body = (req.body ?? {}) as CreateCoverRequest;
-    if (!Number.isInteger(body.width) || body.width <= 0 || !Number.isInteger(body.height) || body.height <= 0)
-      throw badRequest(["width and height must be positive integers"]);
+    if (body.mimeType !== "image/webp") throw badRequest("Mime type does not match media type");
+    if (body.width !== PORTFOLIO_COVER_SIZE.width || body.height !== PORTFOLIO_COVER_SIZE.height)
+      throw reasonError(400, "COVER_INVALID_DIMENSIONS", { expectedWidth: PORTFOLIO_COVER_SIZE.width, expectedHeight: PORTFOLIO_COVER_SIZE.height });
     const result = createPendingMedia({
       projectId: project.id,
       scope: "PORTFOLIO",
@@ -121,31 +136,25 @@ export function registerPortfolio(router: MockRouter) {
     const project = findActiveProject(req.params.id);
     const portfolio = findPortfolio(project.id);
     const { mediaId } = (req.body ?? {}) as { mediaId?: string };
-    if (typeof mediaId !== "string" || !mediaId) throw badRequest(["mediaId must be a string"]);
-    const store = db();
-    const media = store.media.find((m) => m.id === mediaId && m.projectId === project.id && m.scope === "PORTFOLIO");
+    if (typeof mediaId !== "string" || !mediaId) throw badRequest(["mediaId must be a UUID"]);
+    if (portfolio.coverMediaId) throw reasonError(409, "COVER_ALREADY_EXISTS");
+    const media = db().media.find((m) => m.id === mediaId && m.projectId === project.id && m.scope === "PORTFOLIO");
     if (!media) throw notFound("Media not found");
     confirmMediaRecord(media.id);
-    // The replaced cover is no longer referenced: drop its record and bytes.
-    const previous = portfolio.coverMediaId;
-    if (previous && previous !== media.id) {
-      store.media = store.media.filter((m) => m.id !== previous);
-      store.files.delete(previous);
-    }
     portfolio.coverMediaId = media.id;
     touch(portfolio);
-    return json(toPortfolioDetail(portfolio));
+    return json(toProjectDetail(project));
   });
 
   router.post("projects/:id/portfolio/publish", (req) => {
     requirePermission(req, "portfolio");
     const project = findActiveProject(req.params.id);
     const portfolio = findPortfolio(project.id);
-    if (portfolio.isPublished) return json(toPortfolioDetail(portfolio));
+    if (portfolio.isPublished) return json(toProjectDetail(project));
     const maxItems = db().settings.portfolioMaxItems;
     const currentCount = publishedCount();
     if (currentCount >= maxItems) {
-      throw conflict(`The home page already shows ${maxItems} published titles`, { code: "PORTFOLIO_LIMIT_REACHED", maxItems, currentCount });
+      throw reasonError(409, "PORTFOLIO_LIMIT_REACHED", { maxItems, currentCount });
     }
     const orders = db()
       .portfolios.filter((p) => p.isPublished && p.displayOrder !== null)
@@ -154,7 +163,7 @@ export function registerPortfolio(router: MockRouter) {
     portfolio.publishedAt = nowIso();
     portfolio.displayOrder = portfolio.displayOrder ?? (orders.length ? Math.max(...orders) + 1 : 1);
     touch(portfolio);
-    return json(toPortfolioDetail(portfolio));
+    return json(toProjectDetail(project));
   });
 
   router.post("projects/:id/portfolio/unpublish", (req) => {
@@ -164,6 +173,6 @@ export function registerPortfolio(router: MockRouter) {
     portfolio.isPublished = false;
     portfolio.publishedAt = null;
     touch(portfolio);
-    return json(toPortfolioDetail(portfolio));
+    return json(toProjectDetail(project));
   });
 }

@@ -45,7 +45,7 @@ export interface ConfirmMediaResult {
   height: number | null;
 }
 
-/** @api proposed — item of GET /projects/:id/media?scope= (designed in "Ruta siguiente bloque", step 1). */
+/** @api existing — MediaItemDto: confirmed media as returned by cover and gallery reads. */
 export interface MediaItem {
   id: string;
   type: MediaType;
@@ -58,7 +58,22 @@ export interface MediaItem {
   createdAt: IsoDate;
 }
 
-/** @api proposed — GET /projects/:id/media?scope= */
+/** @api existing — GET /projects/:id/media?scope= (gallery only; the cover is excluded). Takes no other query params (400). */
+export interface ProjectGalleryResponse {
+  scope: MediaScope;
+  items: MediaItem[];
+}
+
+/** @api existing — GET /projects/:id/{portfolio|publication}/cover. `null` (200) when there is no confirmed cover. */
+export interface CoverResponse {
+  cover: MediaItem | null;
+}
+
+/**
+ * @deprecated Old proposed shape of GET /projects/:id/media, still answered by the mock for
+ * `scope=PUBLICATION` because Tienda (mock-only, not migrated yet) reads it. Use
+ * `ProjectGalleryResponse` + `CoverResponse` for new code.
+ */
 export interface ProjectMediaResponse {
   scope: MediaScope;
   cover: MediaItem | null;

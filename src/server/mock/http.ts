@@ -31,9 +31,11 @@ export class HttpError extends Error {
     readonly status: number,
     message: string | string[],
     readonly extra: Record<string, unknown> = {},
+    /** Replaces the NestJS default body (e.g. `ConflictException({ reason })` sends only `{ reason }`). */
+    bodyOverride?: ApiErrorBody,
   ) {
     super(Array.isArray(message) ? message.join(", ") : message);
-    this.body = { statusCode: status, message, error: STATUS_TEXT[status] ?? "Error", ...extra };
+    this.body = bodyOverride ?? { statusCode: status, message, error: STATUS_TEXT[status] ?? "Error", ...extra };
   }
   readonly body: ApiErrorBody;
 }
@@ -44,6 +46,8 @@ const STATUS_TEXT: Record<number, string> = {
   403: "Forbidden",
   404: "Not Found",
   409: "Conflict",
+  422: "Unprocessable Entity",
+  502: "Bad Gateway",
 };
 
 export const badRequest = (message: string | string[]) => new HttpError(400, message);
@@ -51,6 +55,12 @@ export const unauthorized = (message = "Unauthorized") => new HttpError(401, mes
 export const forbidden = (message = "Forbidden", extra?: Record<string, unknown>) => new HttpError(403, message, extra);
 export const notFound = (message = "Not found") => new HttpError(404, message);
 export const conflict = (message: string, extra?: Record<string, unknown>) => new HttpError(409, message, extra);
+
+/** Newer panel-api errors: `{ statusCode, code, message }` (production, auth). */
+export const codedError = (status: number, code: string, message: string) => new HttpError(status, message, {}, { statusCode: status, code, message });
+/** Older facets / users: `new ConflictException({ reason })` answers exactly `{ reason }`. */
+export const reasonError = (status: number, reason: string, extra: Record<string, unknown> = {}) =>
+  new HttpError(status, reason, {}, { reason, ...extra });
 
 /** Small artificial latency so loading states are visible while developing. */
 export const latency = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms));

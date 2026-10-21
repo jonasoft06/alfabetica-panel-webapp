@@ -78,7 +78,7 @@ export function registerDashboard(router: MockRouter) {
       production: {
         total: productions.length,
         linked: productions.filter((p) => p.clickupListId).length,
-        lastSyncedAt: store.settings.lastClickupSyncAt,
+        lastSyncedAt: productions.reduce<string | null>((latest, p) => (p.lastSyncedAt && (!latest || p.lastSyncedAt > latest) ? p.lastSyncedAt : latest), null),
         weekly: weekly(productions.map((p) => p.updatedAt)),
       },
       attention,

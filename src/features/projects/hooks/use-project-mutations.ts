@@ -27,12 +27,7 @@ function useInvalidateProjects() {
 export function useCreateProject() {
   const invalidate = useInvalidateProjects();
   return useMutation({
-    /** Production is not part of CreateProjectDto, so it is attached right after creation. */
-    mutationFn: async ({ body, withProduction }: { body: CreateProjectRequest; withProduction: boolean }) => {
-      const project = await projectsApi.create(body);
-      if (withProduction) await projectsApi.addProduction(project.id);
-      return project;
-    },
+    mutationFn: (body: CreateProjectRequest) => projectsApi.create(body),
     onSuccess: (project) => invalidate(project.id),
   });
 }
@@ -53,7 +48,7 @@ export function useDeleteProject() {
 export function useAddRelation() {
   const invalidate = useInvalidateProjects();
   return useMutation({
-    mutationFn: ({ id, relation, publicationType = "SALE" }: { id: string; relation: RelationKey; publicationType?: PublicationType }) => {
+    mutationFn: ({ id, relation, publicationType = "SALE" }: { id: string; relation: RelationKey; publicationType?: PublicationType }): Promise<unknown> => {
       if (relation === "portfolio") return projectsApi.addPortfolio(id);
       if (relation === "publication")
         return projectsApi.addPublication(id, { type: publicationType, ...(publicationType === "SALE" ? { price: 0, quantity: 0 } : {}) });

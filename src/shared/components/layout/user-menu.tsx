@@ -1,11 +1,11 @@
 "use client";
 
-import { ChevronDownIcon, LogOutIcon, UsersIcon } from "lucide-react";
-import Link from "next/link";
+import { ChevronDownIcon, LogOutIcon } from "lucide-react";
 import { useSession } from "@/core/auth/session-provider";
 import { Avatar } from "@/shared/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/dropdown-menu";
 
+/** Signed-in identity and "Cerrar sesión" (session-provider signOut: BFF logout → identity sign-out → /login). */
 export function UserMenu({ compact = false }: { compact?: boolean }) {
   const { user, signOut } = useSession();
   if (!user) return null;
@@ -31,11 +31,6 @@ export function UserMenu({ compact = false }: { compact?: boolean }) {
           <span className="block truncate text-xs font-normal text-muted-foreground">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/colaboradores">
-            <UsersIcon /> Colaboradores
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onSelect={() => void signOut()}>
           <LogOutIcon /> Cerrar sesión
         </DropdownMenuItem>

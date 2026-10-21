@@ -16,5 +16,11 @@ export function describeLoginError(error: unknown): string {
     if (error.isUnauthorized) return "No pudimos validar tu sesión de Google. Intenta de nuevo.";
     if (error.status === 0) return "No hay conexión con el servidor.";
   }
+  // Firebase Auth errors carry a string `code` ("auth/…").
+  const firebaseCode = (error as { code?: unknown } | null)?.code;
+  if (firebaseCode === "auth/popup-blocked") return "El navegador bloqueó la ventana de Google. Permite las ventanas emergentes e intenta de nuevo.";
+  if (firebaseCode === "auth/unauthorized-domain") return "Este dominio no está autorizado en Firebase Auth. Avisa al equipo técnico.";
+  if (firebaseCode === "auth/network-request-failed") return "No pudimos conectar con Google. Revisa tu red e intenta de nuevo.";
+  if (error instanceof Error && error.message.startsWith("Falta la configuración de Firebase")) return error.message;
   return "No pudimos iniciar sesión. Intenta de nuevo.";
 }

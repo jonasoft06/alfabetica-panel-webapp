@@ -26,8 +26,9 @@ const isLastHolder = (target: UserListItem, all: UserListItem[]) => {
   return holders.length === 1 && holders[0].id === target.id;
 };
 
-/** Reason why the target cannot be deactivated, or null when allowed. */
+/** Reason why an ACTIVE target cannot be deactivated, or null when allowed (the API only protects ACTIVE users). */
 export function deactivationBlock(target: UserListItem, all: UserListItem[], currentUserId: string | undefined): string | null {
+  if (target.status !== "ACTIVE") return null;
   if (target.id === currentUserId) return "No puedes desactivarte a ti mismo.";
   if (target.status === "ACTIVE" && isLastHolder(target, all)) return "Es la única persona activa con acceso a Colaboradores.";
   return null;

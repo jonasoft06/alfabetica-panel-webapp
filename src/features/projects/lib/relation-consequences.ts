@@ -8,7 +8,7 @@ export const RELATION_CONSEQUENCES: Record<RelationKey, (ctx: { sections?: numbe
     sections ? `Las ${sections} secciones del título y su orden` : "Las secciones del título y su orden",
     "Su ficha en la tienda, portada y galería",
   ],
-  production: () => ["Código al público", "Enlace con ClickUp y etapa actual"],
+  production: () => ["Código al público", "Vínculo con ClickUp, fase y fechas sincronizadas"],
 };
 
 export const RELATION_DESCRIPTIONS: Record<RelationKey, string> = {

@@ -1,7 +1,7 @@
 import "server-only";
 import type { PermissionKey } from "@/contracts/auth";
 import type { PublicationType } from "@/contracts/publication";
-import type { MediaRecord, MockDb, PortfolioRecord, ProductionRecord, ProjectRecord, PublicationRecord, SectionRecord, StageRecord, UserRecord } from "../db";
+import type { MediaRecord, MockDb, PhaseRecord, PortfolioRecord, ProductionRecord, ProjectRecord, PublicationRecord, SectionRecord, UserRecord } from "../db";
 import { slugify } from "../db";
 
 const DAY = 24 * 3600 * 1000;
@@ -93,21 +93,17 @@ const USERS: Omit<UserRecord, "createdAt">[] = [
   },
 ];
 
-const STAGES: StageRecord[] = [
-  ["manuscript", "Manuscrito", "Recibimos y revisamos el texto original.", ["por recibir", "manuscrito"]],
-  ["editing", "Edición", "Corrección de estilo y revisión editorial.", ["edición", "corrección de estilo"]],
-  ["layout", "Diseño y maquetación", "Diseño de portada e interiores.", ["diseño", "maquetación"]],
-  ["proofs", "Pruebas", "Revisión de pruebas finales con el autor.", ["pruebas", "revisión final"]],
-  ["printing", "Imprenta", "El título está en producción en imprenta.", ["imprenta", "impresión"]],
-  ["delivered", "Entregado", "Ejemplares entregados al cliente.", ["entregado", "complete"]],
-].map(([key, clientLabel, clientDescription, match], i) => ({
-  id: id("00000003", i + 1),
-  key: key as string,
-  clientLabel: clientLabel as string,
-  clientDescription: clientDescription as string,
-  sortOrder: i + 1,
-  clickupStatusMatch: match as string[],
-}));
+/** Same catalog as panel-api `prisma/seed.ts` (codes are what the code compares, labels what clients read). */
+const PHASES: PhaseRecord[] = [
+  ["CONTENT_REVIEW", "Revisión de contenidos"],
+  ["COPYEDITING", "Corrección"],
+  ["LAYOUT", "Diseño y maquetación"],
+  ["FINAL_REVIEW", "Revisión final"],
+  ["PRINTING", "Imprenta"],
+  ["PUBLISHED", "Publicado"],
+].map(([code, label], i) => ({ id: id("00000003", i + 1), code, label, sortOrder: i + 1 }));
+
+const STAGE_NAMES = ["2. Revisión de manuscrito", "3. Corrección de estilo", "6. Maquetación de interiores", "9. Pruebas con el autor", "11. Imprenta"];
 
 interface ProjectSeed {
   title: string;
@@ -119,7 +115,8 @@ interface ProjectSeed {
   updatedDaysAgo: number;
   portfolio?: { published: boolean; order?: number; cover: boolean; gallery?: number };
   publication?: { type: PublicationType; published: boolean; price?: number; quantity?: number; url?: string; sections?: number; cover: boolean };
-  production?: { code: string; clickup: string | null; stage: number };
+  /** `phase`: 1–5 in production, 6 = finished (archived in ClickUp). Ignored when `clickup` is null. */
+  production?: { code: string; clickup: string | null; phase: number; author?: string; book?: "ACADEMIC" | "TEXTBOOK" };
 }
 
 const PROJECTS: ProjectSeed[] = [
@@ -133,7 +130,7 @@ const PROJECTS: ProjectSeed[] = [
     updatedDaysAgo: 2,
     portfolio: { published: true, order: 1, cover: true, gallery: 4 },
     publication: { type: "SALE", published: true, price: 420, quantity: 120, sections: 6, cover: true },
-    production: { code: "ALF-LC3-2026", clickup: "86a1kx9", stage: 3 },
+    production: { code: "7KQM-3WXP", clickup: "901300418201", phase: 3, author: "Laura Méndez", book: "TEXTBOOK" },
   },
   {
     title: "Manual de Ortografía Avanzada",
@@ -144,7 +141,8 @@ const PROJECTS: ProjectSeed[] = [
     tags: ["Docentes", "Ortografía"],
     updatedDaysAgo: 3,
     portfolio: { published: true, order: 2, cover: true, gallery: 2 },
-    production: { code: "ALF-ORT-2025", clickup: null, stage: 5 },
+    // Manual production (no ClickUp list) that is already being tracked by hand.
+    production: { code: "H4TR-9ZNC", clickup: null, phase: 2, author: "Ricardo Ortega", book: "ACADEMIC" },
   },
   {
     title: "Antología de Cuentos Breves",
@@ -166,7 +164,7 @@ const PROJECTS: ProjectSeed[] = [
     tags: ["Primaria", "Matemáticas"],
     updatedDaysAgo: 8,
     publication: { type: "SALE", published: false, price: 285, quantity: 40, sections: 4, cover: false },
-    production: { code: "ALF-GDM-2025", clickup: "86a0zzq", stage: 6 },
+    production: { code: "B2VE-6JDA", clickup: "901300418202", phase: 6, author: "Graciela Durán", book: "ACADEMIC" },
   },
   {
     title: "Cuadernillo de Comprensión Lectora",
@@ -177,7 +175,7 @@ const PROJECTS: ProjectSeed[] = [
     tags: ["Lectura"],
     updatedDaysAgo: 9,
     portfolio: { published: false, cover: false },
-    production: { code: "ALF-CCL-2026", clickup: null, stage: 2 },
+    production: { code: "NX8F-4MKT", clickup: null, phase: 1 },
   },
   {
     title: "Historia de México — Vol. II",
@@ -189,7 +187,7 @@ const PROJECTS: ProjectSeed[] = [
     updatedDaysAgo: 14,
     portfolio: { published: true, order: 4, cover: true, gallery: 5 },
     publication: { type: "SALE", published: true, price: 385, quantity: 48, sections: 15, cover: true },
-    production: { code: "ALF-HM2-2026", clickup: "86a1m4t", stage: 4 },
+    production: { code: "R5PW-2HGS", clickup: "901300418203", phase: 4, book: "TEXTBOOK" },
   },
   {
     title: "Matemáticas Aplicadas I",
@@ -271,7 +269,7 @@ const PROJECTS: ProjectSeed[] = [
     tags: ["Bachillerato", "Química"],
     updatedDaysAgo: 60,
     portfolio: { published: false, cover: false },
-    production: { code: "ALF-QTE-2026", clickup: "86a2b7c", stage: 1 },
+    production: { code: "Y9CD-7UBQ", clickup: "901300418204", phase: 1, author: "Equipo Quántica", book: "ACADEMIC" },
   },
 ];
 
@@ -404,16 +402,24 @@ export function seed(): MockDb {
     }
 
     if (p.production) {
+      const { code, clickup, phase, author, book } = p.production;
+      const finished = phase >= PHASES.length;
+      // Linked titles carry ClickUp data; manual ones only when a book type was captured (else NOT_STARTED).
+      const tracked = !!clickup || !!book;
       productions.push({
         id: crypto.randomUUID(),
         projectId,
-        publicCode: p.production.code,
-        clickupListId: p.production.clickup,
-        startDate: createdAt.slice(0, 10),
-        estimatedTotalDays: 90,
-        currentStageId: STAGES[p.production.stage - 1].id,
-        estimatedEndDate: ahead(10 + index * 4),
-        lastSyncedAt: p.production.clickup ? ago(0.1) : null,
+        publicCode: code,
+        authorName: author ?? null,
+        clickupListId: clickup,
+        bookType: clickup ? (book ?? "ACADEMIC") : (book ?? null),
+        status: !tracked ? "NOT_STARTED" : finished ? "FINISHED" : "IN_PRODUCTION",
+        currentPhaseCode: tracked ? PHASES[Math.min(phase, PHASES.length) - 1].code : null,
+        currentStageName: clickup && !finished ? STAGE_NAMES[phase - 1] : null,
+        // One linked title without stage due date: the panel must show "Fecha por confirmar".
+        currentStageDueDate: clickup && !finished && phase !== 4 ? ahead(3 + index) : null,
+        estimatedEndDate: tracked ? ahead(finished ? -12 : 10 + index * 4) : null,
+        lastSyncedAt: clickup ? ago(0.1) : null,
         createdAt,
         updatedAt,
       });
@@ -428,9 +434,9 @@ export function seed(): MockDb {
     publications,
     sections,
     media,
-    stages: STAGES,
+    phases: PHASES,
     productions,
-    settings: { portfolioMaxItems: 10, lastClickupSyncAt: ago(0.1) },
+    settings: { portfolioMaxItems: 10 },
     accessTokens: new Map(),
     refreshTokens: new Map(),
     files: new Map(),

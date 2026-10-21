@@ -1,15 +1,21 @@
-import type { ProductionListItem } from "@/contracts/production";
+import type { ProductionListItem, ProductionStatus } from "@/contracts/production";
 
-export type ProductionSort = "stage-asc" | "stage-desc";
-export type LinkFilter = "all" | "linked" | "unlinked";
+export type StatusFilter = "all" | ProductionStatus;
+export type ProductionSort = "delivery-asc" | "delivery-desc";
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export function filterProductions(items: ProductionListItem[], { query, link, sort }: { query: string; link: LinkFilter; sort: ProductionSort }) {
+/** Productions without an estimated end date go last in both directions ("yyyy-mm-dd" compares as text). */
+function compareDelivery(a: ProductionListItem, b: ProductionListItem, sort: ProductionSort) {
+  if (!a.estimatedEndDate || !b.estimatedEndDate) return a.estimatedEndDate ? -1 : b.estimatedEndDate ? 1 : 0;
+  return sort === "delivery-asc" ? a.estimatedEndDate.localeCompare(b.estimatedEndDate) : b.estimatedEndDate.localeCompare(a.estimatedEndDate);
+}
+
+export function filterProductions(items: ProductionListItem[], { query, status, sort }: { query: string; status: StatusFilter; sort: ProductionSort }) {
   const q = normalize(query.trim());
-  const order = (p: ProductionListItem) => p.currentStage?.sortOrder ?? 0;
+  const matches = (p: ProductionListItem) =>
+    !q || normalize(p.projectTitle).includes(q) || normalize(p.publicCode).includes(q) || (!!p.authorName && normalize(p.authorName).includes(q));
   return items
-    .filter((p) => (link === "all" ? true : link === "linked" ? !!p.clickupListId : !p.clickupListId))
-    .filter((p) => !q || normalize(p.title).includes(q) || normalize(p.publicCode).includes(q))
-    .sort((a, b) => (sort === "stage-asc" ? order(a) - order(b) : order(b) - order(a)) || a.title.localeCompare(b.title, "es"));
+    .filter((p) => (status === "all" || p.status === status) && matches(p))
+    .sort((a, b) => compareDelivery(a, b, sort) || a.projectTitle.localeCompare(b.projectTitle, "es"));
 }

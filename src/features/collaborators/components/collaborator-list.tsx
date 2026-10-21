@@ -1,6 +1,6 @@
 "use client";
 
-import { MailCheckIcon, MoreHorizontalIcon, ShieldCheckIcon, UserCheckIcon, UserXIcon } from "lucide-react";
+import { MailCheckIcon, MailXIcon, MoreHorizontalIcon, ShieldCheckIcon, UserCheckIcon, UserXIcon } from "lucide-react";
 import type { UserListItem } from "@/contracts/users";
 import { formatRelative } from "@/shared/lib/format";
 import { Avatar } from "@/shared/ui/avatar";
@@ -12,10 +12,14 @@ import { ModuleChips } from "./module-chips";
 import { StatusBadge } from "./status-badge";
 
 export interface CollaboratorRowActions {
-  onEditPermissions: (user: UserListItem) => void;
-  onResend: (user: UserListItem) => void;
   onDeactivate: (user: UserListItem) => void;
+  onCancelInvitation: (user: UserListItem) => void;
   onReactivate: (user: UserListItem) => void;
+}
+
+/** Tag for actions whose panel-api endpoint does not exist yet (PUT /users/:id/permissions, resend). */
+function ComingSoon() {
+  return <span className="ml-auto pl-3 text-[10px] font-extrabold tracking-wide text-muted-foreground uppercase">Próximamente</span>;
 }
 
 const GRID = "md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,0.8fr)_minmax(0,1.9fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_auto] md:items-center md:gap-5";
@@ -35,18 +39,26 @@ function RowMenu({ user, actions, deactivateBlock }: { user: UserListItem; actio
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" aria-label={`Acciones para ${name}`}>
-        <DropdownMenuItem onSelect={() => actions.onEditPermissions(user)}>
+        <DropdownMenuItem disabled>
           <ShieldCheckIcon /> Editar permisos
+          <ComingSoon />
         </DropdownMenuItem>
         {user.status === "INVITED" && (
-          <DropdownMenuItem onSelect={() => actions.onResend(user)}>
+          <DropdownMenuItem disabled>
             <MailCheckIcon /> Reenviar invitación
+            <ComingSoon />
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        {user.status === "INACTIVE" ? (
-          <DropdownMenuItem onSelect={() => actions.onReactivate(user)}>
+        {user.status === "INVITED" ? (
+          <DropdownMenuItem variant="destructive" onSelect={() => actions.onCancelInvitation(user)}>
+            <MailXIcon /> Cancelar invitación
+          </DropdownMenuItem>
+        ) : user.status === "INACTIVE" ? (
+          // Only accounts that already signed in once (linked to Google) can be activated by hand.
+          <DropdownMenuItem disabled={!user.lastLogin} onSelect={() => actions.onReactivate(user)}>
             <UserCheckIcon /> Reactivar
+            {!user.lastLogin && <span className="ml-auto pl-3 text-[10px] font-semibold text-muted-foreground">Nunca entró al panel</span>}
           </DropdownMenuItem>
         ) : (
           <DropdownMenuItem variant="destructive" disabled={!!deactivateBlock} title={deactivateBlock ?? undefined} onSelect={() => actions.onDeactivate(user)}>

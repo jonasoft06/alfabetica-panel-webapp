@@ -3,6 +3,7 @@ import type { ApiErrorBody } from "@/contracts/common";
 /** Normalized error thrown by the HTTP client for any non-2xx response. */
 export class ApiError extends Error {
   readonly status: number;
+  /** Machine code: `code` on newer panel-api endpoints, `reason` on the older facets — both land here. */
   readonly code?: string;
   readonly body?: ApiErrorBody;
 
@@ -11,7 +12,7 @@ export class ApiError extends Error {
     super(Array.isArray(raw) ? raw.join(" · ") : (raw ?? `Request failed with status ${status}`));
     this.name = "ApiError";
     this.status = status;
-    this.code = body?.code;
+    this.code = body?.code ?? body?.reason;
     this.body = body;
   }
 
@@ -29,9 +30,14 @@ export class ApiError extends Error {
   }
 }
 
-/** Human message in Spanish for generic failures; features can map specific codes. */
-export function describeError(error: unknown): string {
+/** Spanish messages per machine code (`code` / `reason`), supplied by each feature. */
+export type ErrorMessages = Partial<Record<string, string>>;
+
+/** Human message in Spanish. Feature-specific codes win over the generic per-status messages. */
+export function describeError(error: unknown, messages?: ErrorMessages): string {
   if (error instanceof ApiError) {
+    const specific = error.code ? messages?.[error.code] : undefined;
+    if (specific) return specific;
     if (error.status === 0) return "No hay conexión con el servidor. Revisa tu red e intenta de nuevo.";
     if (error.isForbidden) return "No tienes permiso para realizar esta acción.";
     if (error.isNotFound) return "El elemento ya no existe o fue eliminado.";
