@@ -1,10 +1,9 @@
 "use client";
 
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { InfoIcon, SendIcon } from "lucide-react";
-import { notify } from "@/shared/components/feedback/notify";
+import { CheckIcon, CircleAlertIcon, CircleCheckIcon, CopyIcon, InfoIcon, SendIcon } from "lucide-react";
 import { Field } from "@/shared/components/form/field";
 import { Button } from "@/shared/ui/button";
 import { Input } from "@/shared/ui/input";
@@ -20,7 +19,7 @@ import {
   toInvitePayload,
   type InviteFormValues,
 } from "../schemas/collaborator-forms.schema";
-import { inviteErrorMessages } from "../lib/collaborator-errors";
+import { classifyInviteError } from "../lib/collaborator-errors";
 import { PermissionSwitchList } from "./permission-switch-list";
 
 export function InviteModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -32,11 +31,18 @@ export function InviteModal({ open, onClose }: { open: boolean; onClose: () => v
 }
 
 function InviteContent({ onClose }: { onClose: () => void }) {
+  const [invited, setInvited] = useState<string | null>(null);
+  if (invited) return <InviteCreated who={invited} onClose={onClose} />;
+  return <InviteForm onClose={onClose} onInvited={setInvited} />;
+}
+
+function InviteForm({ onClose, onInvited }: { onClose: () => void; onInvited: (who: string) => void }) {
   const ids = { email: useId(), name: useId(), role: useId() };
   const roles = useRoles();
   const catalog = usePermissionCatalog();
   const invite = useInviteCollaborator();
-  const { register, handleSubmit, control, formState } = useForm<InviteFormValues>({
+  const [failure, setFailure] = useState<string | null>(null);
+  const { register, handleSubmit, control, setError, formState } = useForm<InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: emptyInviteForm,
     mode: "onTouched",
@@ -44,12 +50,15 @@ function InviteContent({ onClose }: { onClose: () => void }) {
   const { errors, isSubmitting } = formState;
 
   const onSubmit = handleSubmit(async (values) => {
+    setFailure(null);
     try {
       const created = await invite.mutateAsync(toInvitePayload(values));
-      notify.success("Invitación enviada", `${created.email} · vence en ${INVITATION_VALID_DAYS} días`);
-      onClose();
+      onInvited(created.name ?? created.email);
     } catch (error) {
-      notify.error(error, "No se pudo enviar la invitación", inviteErrorMessages(error));
+      // The dialog stays open: field errors go under their field, the rest in a banner.
+      const { field, message } = classifyInviteError(error);
+      if (field) setError(field, { message }, { shouldFocus: true });
+      else setFailure(message);
     }
   });
 
@@ -61,7 +70,20 @@ function InviteContent({ onClose }: { onClose: () => void }) {
       </ModalHeader>
       <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col" noValidate>
         <ModalBody className="space-y-5">
-          <Field label="Correo corporativo" htmlFor={ids.email} required error={errors.email?.message} hint={`Debe terminar en @${CORPORATE_DOMAIN}.`}>
+          {failure && (
+            <p role="alert" className="flex gap-2 rounded-xl bg-destructive/10 px-3.5 py-2.5 text-sm font-semibold text-destructive">
+              <CircleAlertIcon aria-hidden className="mt-0.5 size-4 shrink-0" />
+              <span>No se pudo crear la invitación. {failure}</span>
+            </p>
+          )}
+          <Field
+            label="Correo corporativo"
+            htmlFor={ids.email}
+            required
+            error={errors.email?.message}
+            hint={`Debe terminar en @${CORPORATE_DOMAIN}.`}
+            keepHint
+          >
             <Input
               id={ids.email}
               type="email"
@@ -122,8 +144,8 @@ function InviteContent({ onClose }: { onClose: () => void }) {
           <p className="flex gap-2 rounded-2xl bg-tan-sun/25 px-4 py-3 text-xs text-eerie/80">
             <InfoIcon className="mt-0.5 size-4 shrink-0 text-tan-sun-dark" />
             <span>
-              La invitación vence en {INVITATION_VALID_DAYS} días y el usuario queda como <strong>Invitado</strong> hasta su primer acceso. El contenido del
-              correo de invitación aún está pendiente de diseño.
+              La invitación vence en {INVITATION_VALID_DAYS} días y el usuario queda como <strong>Invitado</strong> hasta su primer acceso. El panel no
+              envía ningún correo: tendrás que avisarle tú.
             </span>
           </p>
         </ModalBody>
@@ -133,11 +155,68 @@ function InviteContent({ onClose }: { onClose: () => void }) {
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              <SendIcon /> {isSubmitting ? "Enviando…" : "Enviar invitación"}
+              <SendIcon /> {isSubmitting ? "Creando…" : "Crear invitación"}
             </Button>
           </div>
         </ModalFooter>
       </form>
+    </ModalContent>
+  );
+}
+
+/**
+ * The API does not send any email: the confirmation tells the inviter to let the person know, with the
+ * panel's own origin (localhost in dev, the production domain once deployed) and a copy button.
+ */
+function InviteCreated({ who, onClose }: { who: string; onClose: () => void }) {
+  const [panelUrl] = useState(() => window.location.origin);
+  const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
+
+  useEffect(() => {
+    if (copy !== "copied") return;
+    const timer = setTimeout(() => setCopy("idle"), 2000);
+    return () => clearTimeout(timer);
+  }, [copy]);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(panelUrl);
+      setCopy("copied");
+    } catch {
+      setCopy("failed");
+    }
+  };
+
+  return (
+    <ModalContent size="sm">
+      <ModalHeader>
+        <ModalTitle className="flex items-center gap-2">
+          <CircleCheckIcon aria-hidden className="size-5 text-turquoise-dark" /> Invitación creada
+        </ModalTitle>
+        <ModalDescription className="leading-relaxed">
+          Avísale a <strong className="text-eerie">{who}</strong> que ya puede entrar con su cuenta de Google en{" "}
+          <strong className="whitespace-nowrap text-eerie">{panelUrl}</strong>. La invitación vence en {INVITATION_VALID_DAYS} días.
+        </ModalDescription>
+      </ModalHeader>
+      <ModalBody>
+        <div className="flex items-center gap-2 rounded-xl bg-muted py-1.5 pr-1.5 pl-3.5">
+          <code className="min-w-0 flex-1 truncate font-mono text-xs font-bold">{panelUrl}</code>
+          <Button type="button" size="sm" variant="outline" onClick={copyLink} aria-live="polite">
+            {copy === "copied" ? <CheckIcon /> : <CopyIcon />}
+            {copy === "copied" ? "Copiado" : "Copiar enlace"}
+          </Button>
+        </div>
+        {copy === "failed" && (
+          <p role="alert" className="mt-2 text-xs font-semibold text-destructive">
+            No se pudo copiar. Selecciona el enlace y cópialo a mano.
+          </p>
+        )}
+      </ModalBody>
+      <ModalFooter>
+        <Button type="button" onClick={onClose}>
+          Listo
+        </Button>
+      </ModalFooter>
     </ModalContent>
   );
 }

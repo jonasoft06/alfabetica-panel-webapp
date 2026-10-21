@@ -1,4 +1,5 @@
 import type { PermissionKey } from "@/contracts/auth";
+import type { Permission } from "@/contracts/users";
 import { RELATIONS } from "@/shared/lib/relations";
 
 /** Modules a collaborator can be granted access to (yes/no). `inventory` is phase 2 and handled apart. */
@@ -26,12 +27,22 @@ export const MODULE_DOT: Record<ModuleKey, string> = {
   settings: "bg-tan-sun",
 };
 
-/** Fallback copy if the permission catalog has not loaded. */
-export const MODULE_FALLBACK: Record<ModuleKey, { name: string; description: string }> = {
-  users: { name: "Colaboradores", description: "Invitar personas y administrar sus accesos." },
-  projects: { name: "Proyectos", description: "Crear, editar y eliminar proyectos del catálogo." },
-  portfolio: { name: "Portafolio", description: "Gestionar lo que se publica en el portafolio web." },
-  production: { name: "Producción", description: "Dar seguimiento a la producción y su avance." },
-  publication: { name: "Tienda", description: "Administrar publicaciones, precios y secciones de venta." },
-  settings: { name: "Ajustes", description: "Cambiar la configuración general del panel." },
+/**
+ * Spanish copy per permission code. The API catalog (GET /permissions) is in English, so the UI never shows
+ * its name/description for a known code; it is only the fallback for codes the panel does not know yet.
+ */
+export const MODULE_LABELS: Record<ModuleKey, { name: string; description: string }> = {
+  users: { name: "Colaboradores", description: "Invitar, activar y desactivar colaboradores" },
+  projects: { name: "Proyectos", description: "Datos generales del proyecto y sus relaciones" },
+  portfolio: { name: "Portafolio", description: "Portada, galería y publicación en la web" },
+  production: { name: "Producción", description: "Seguimiento editorial y sincronización con ClickUp" },
+  publication: { name: "Tienda", description: "Venta, enlaces y capítulos DOI" },
+  settings: { name: "Configuración", description: "Configuración general del sitio" },
 };
+
+/** Label for any permission code: Spanish for known modules, else the API's name (or the raw code). */
+export function permissionLabel(key: string, catalog?: Permission[]): { name: string; description: string | null } {
+  if ((MODULE_KEYS as readonly string[]).includes(key)) return MODULE_LABELS[key as ModuleKey];
+  const entry = catalog?.find((p) => p.key === key);
+  return { name: entry?.name ?? key, description: entry?.description ?? null };
+}

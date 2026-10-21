@@ -15,7 +15,7 @@ export const inviteFormSchema = z.object({
     .toLowerCase()
     .min(1, "Escribe el correo de la persona.")
     .email("Escribe un correo válido.")
-    .refine((v) => v.endsWith(`@${CORPORATE_DOMAIN}`), `Solo se admiten correos @${CORPORATE_DOMAIN}.`),
+    .refine((v) => v.endsWith(`@${CORPORATE_DOMAIN}`), `Solo se permiten correos @${CORPORATE_DOMAIN}.`),
   name: z.string().trim().max(120, "Máximo 120 caracteres."),
   roleId: z.string().min(1, "Elige el rol de la persona."),
   permissions: z.array(permissionKey),

@@ -1,6 +1,6 @@
 import type { PermissionKey } from "@/contracts/auth";
 import { cn } from "@/shared/lib/cn";
-import { MODULE_CHIP, MODULE_FALLBACK, MODULE_KEYS } from "../lib/modules";
+import { MODULE_CHIP, MODULE_KEYS, permissionLabel } from "../lib/modules";
 
 /** Compact chips of the modules a collaborator can access, colored like their module. */
 export function ModuleChips({ permissions }: { permissions: PermissionKey[] }) {
@@ -10,7 +10,7 @@ export function ModuleChips({ permissions }: { permissions: PermissionKey[] }) {
     <ul className="flex flex-wrap gap-1.5" aria-label="Módulos con acceso">
       {modules.map((key) => (
         <li key={key} className={cn("rounded-full px-2.5 py-1 text-[11px] leading-none font-bold", MODULE_CHIP[key])}>
-          {MODULE_FALLBACK[key].name}
+          {permissionLabel(key).name}
         </li>
       ))}
       {permissions.includes("inventory") && (

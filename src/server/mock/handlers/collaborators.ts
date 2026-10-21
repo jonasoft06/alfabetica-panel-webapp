@@ -13,13 +13,13 @@ const INVITATION_VALID_MS = 7 * 24 * 3600 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const CATALOG: Omit<Permission, "id">[] = [
-  { key: "users", name: "Colaboradores", description: "Invitar personas y administrar sus accesos." },
-  { key: "projects", name: "Proyectos", description: "Crear, editar y eliminar proyectos del catálogo." },
-  { key: "portfolio", name: "Portafolio", description: "Gestionar lo que se publica en el portafolio web." },
-  { key: "production", name: "Producción", description: "Dar seguimiento a la producción y su avance." },
-  { key: "publication", name: "Tienda", description: "Administrar publicaciones, precios y secciones de venta." },
-  { key: "settings", name: "Ajustes", description: "Cambiar la configuración general del panel." },
-  { key: "inventory", name: "Inventario", description: "Control de existencias (fase 2)." },
+  { key: "users", name: "Users", description: "Invite and manage panel users" },
+  { key: "projects", name: "Projects", description: "Manage projects and their relations" },
+  { key: "portfolio", name: "Portfolio", description: "Manage the web portfolio" },
+  { key: "production", name: "Production", description: "Production tracking and ClickUp sync" },
+  { key: "publication", name: "Publication", description: "Store publications, links and DOI chapters" },
+  { key: "settings", name: "Settings", description: "General site settings" },
+  { key: "inventory", name: "Inventory", description: "Stock control (phase 2)" },
 ];
 
 const toItem = (u: UserRecord): UserListItem => {

@@ -8,10 +8,10 @@ import { cn } from "@/shared/lib/cn";
 import { Badge } from "@/shared/ui/badge";
 import { Skeleton } from "@/shared/ui/skeleton";
 import { Switch } from "@/shared/ui/switch";
-import { MODULE_DOT, MODULE_FALLBACK, MODULE_KEYS, type ModuleKey } from "../lib/modules";
+import { MODULE_DOT, MODULE_KEYS, permissionLabel, type ModuleKey } from "../lib/modules";
 
 export interface PermissionSwitchListProps {
-  /** Catalog from GET /permissions; falls back to local copy while loading/failing. */
+  /** Catalog from GET /permissions: labels are Spanish per code (`permissionLabel`), the catalog is only a fallback. */
   catalog: Permission[] | undefined;
   value: PermissionKey[];
   onChange: (next: PermissionKey[]) => void;
@@ -35,15 +35,11 @@ export function PermissionSwitchList({ catalog, value, onChange, locked = {}, di
   }
 
   const toggle = (key: ModuleKey, on: boolean) => onChange(on ? [...value.filter((k) => k !== key), key] : value.filter((k) => k !== key));
-  const info = (key: ModuleKey) => {
-    const entry = catalog?.find((p) => p.key === key);
-    return { name: entry?.name ?? MODULE_FALLBACK[key].name, description: entry?.description ?? MODULE_FALLBACK[key].description };
-  };
 
   return (
     <ul className="space-y-2" aria-label="Acceso por módulo">
       {MODULE_KEYS.map((key) => {
-        const { name, description } = info(key);
+        const { name, description } = permissionLabel(key, catalog);
         const reason = locked[key];
         const on = value.includes(key);
         const id = `${baseId}-${key}`;
@@ -69,7 +65,7 @@ export function PermissionSwitchList({ catalog, value, onChange, locked = {}, di
                 </p>
               )}
             </div>
-            <span className="hidden text-xs font-bold text-muted-foreground sm:inline" aria-hidden>
+            <span className="text-xs font-bold text-muted-foreground" aria-hidden>
               {on ? "Sí" : "No"}
             </span>
             <Switch id={id} checked={on} onCheckedChange={(next) => toggle(key, next)} disabled={disabled || !!reason} aria-describedby={`${id}-desc`} />
