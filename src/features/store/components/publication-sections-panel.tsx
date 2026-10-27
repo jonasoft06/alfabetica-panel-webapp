@@ -90,7 +90,7 @@ export function PublicationSectionsPanel({
     onDelete: setToDelete,
     onPickPdf: (section, file) => {
       const problem = validatePdf(file);
-      if (problem) return notify.error(new Error(problem), "No se pudo subir el PDF");
+      if (problem) return notify.error(null, "No se pudo subir el PDF", problem);
       setUploadingId(section.id);
       uploadPdf.mutate(
         { sectionId: section.id, file },
@@ -130,7 +130,7 @@ export function PublicationSectionsPanel({
         </div>
         {type === "DOI" && (
           <p className="rounded-xl bg-grape/10 px-3.5 py-2.5 text-[13px] text-eerie/80">
-            En una publicación DOI cada sección es un capítulo: sube su PDF (máx. 50 MB) para que el público pueda leerlo.
+            En una publicación DOI cada sección es un capítulo: sube su PDF (máx. 25 MB) para que el público pueda leerlo.
           </p>
         )}
 

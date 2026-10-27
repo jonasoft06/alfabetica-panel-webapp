@@ -2,7 +2,8 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { CreateSectionRequest, PublicationSection, UpdateSectionRequest, UpsertPublicationRequest } from "@/contracts/publication";
-import { runUploadFlow } from "@/core/media/upload-flow";
+import { UserFacingError } from "@/core/http/api-error";
+import { assertImageUploadSize, runUploadFlow } from "@/core/media/upload-flow";
 import { prepareImage } from "@/core/media/prepare-image";
 import { projectKeys } from "@/features/projects/api/projects-api";
 import { publicationApi, publicationKeys } from "../api/publication-api";
@@ -37,6 +38,7 @@ export function useUploadCover(projectId: string) {
     mutationFn: async (file: File) => {
       const image = await prepareImage(file);
       try {
+        assertImageUploadSize(image.blob);
         return await runUploadFlow({
           blob: image.blob,
           mimeType: image.mimeType,
@@ -55,13 +57,15 @@ export function useUploadCover(projectId: string) {
 export function useUploadGalleryImages(projectId: string) {
   const invalidate = useInvalidate(projectId);
   return useMutation({
-    /** Uploads sequentially (keeps displayOrder stable); resolves with the number of images that failed. */
+    /** Uploads sequentially (keeps displayOrder stable); resolves with the number of images that failed (and how many were too large). */
     mutationFn: async (files: File[]) => {
       let failed = 0;
+      let tooLarge = 0;
       for (const file of files) {
         try {
           const image = await prepareImage(file);
           try {
+            assertImageUploadSize(image.blob);
             await runUploadFlow({
               blob: image.blob,
               mimeType: image.mimeType,
@@ -77,11 +81,12 @@ export function useUploadGalleryImages(projectId: string) {
           } finally {
             URL.revokeObjectURL(image.previewUrl);
           }
-        } catch {
+        } catch (error) {
           failed++;
+          if (error instanceof UserFacingError) tooLarge++;
         }
       }
-      return { total: files.length, failed };
+      return { total: files.length, failed, tooLarge };
     },
     onSettled: () => invalidate(),
   });

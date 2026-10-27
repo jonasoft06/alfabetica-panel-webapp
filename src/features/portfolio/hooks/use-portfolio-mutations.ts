@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { dashboardKeys } from "@/features/dashboard/api/dashboard-api";
 import { projectKeys } from "@/features/projects/api/projects-api";
 import { prepareCoverImage, prepareImage } from "@/core/media/prepare-image";
-import { runUploadFlow } from "@/core/media/upload-flow";
+import { assertImageUploadSize, runUploadFlow } from "@/core/media/upload-flow";
 import { portfolioApi, portfolioKeys } from "../api/portfolio-api";
 import { changedOrders } from "../lib/portfolio-filters";
 import { PORTFOLIO_COVER_SIZE, type PortfolioListItem } from "@/contracts/portfolio";
@@ -96,6 +96,8 @@ export function useUploadCover() {
     mutationFn: async ({ projectId, file, alt, replaceMediaId }: { projectId: string; file: File; alt?: string; replaceMediaId?: string }) => {
       const image = await prepareCoverImage(file, PORTFOLIO_COVER_SIZE);
       try {
+        // Before deleting the current cover: a too-large result must not leave the title without one.
+        assertImageUploadSize(image.blob);
         if (replaceMediaId) await portfolioApi.deleteMedia(replaceMediaId);
         return await runUploadFlow({
           blob: image.blob,
@@ -119,6 +121,7 @@ export function useUploadGalleryImage() {
     mutationFn: async ({ projectId, file, alt }: { projectId: string; file: File; alt?: string }) => {
       const image = await prepareImage(file);
       try {
+        assertImageUploadSize(image.blob);
         return await runUploadFlow({
           blob: image.blob,
           mimeType: image.mimeType,

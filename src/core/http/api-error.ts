@@ -30,13 +30,25 @@ export class ApiError extends Error {
   }
 }
 
+/** Client-side failure whose message is already written for the user (Spanish). */
+export class UserFacingError extends Error {
+  override name = "UserFacingError";
+}
+
 /** Spanish messages per machine code (`code` / `reason`), supplied by each feature. */
 export type ErrorMessages = Partial<Record<string, string>>;
 
-/** Human message in Spanish. Feature-specific codes win over the generic per-status messages. */
+/** Codes any feature can hit. 422 from a media confirm: the uploaded object is unusable, retry from scratch. */
+const SHARED_MESSAGES: ErrorMessages = {
+  UPLOAD_OBJECT_MISSING: "No se pudo subir el archivo, inténtalo de nuevo",
+  UPLOAD_OBJECT_MISMATCH: "No se pudo subir el archivo, inténtalo de nuevo",
+};
+
+/** Human message in Spanish. Feature-specific codes win over the shared ones and the generic per-status messages. */
 export function describeError(error: unknown, messages?: ErrorMessages): string {
+  if (error instanceof UserFacingError) return error.message;
   if (error instanceof ApiError) {
-    const specific = error.code ? messages?.[error.code] : undefined;
+    const specific = error.code ? (messages?.[error.code] ?? SHARED_MESSAGES[error.code]) : undefined;
     if (specific) return specific;
     if (error.status === 0) return "No hay conexión con el servidor. Revisa tu red e intenta de nuevo.";
     if (error.isForbidden) return "No tienes permiso para realizar esta acción.";

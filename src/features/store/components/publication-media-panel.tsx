@@ -8,6 +8,7 @@ import { ErrorState } from "@/shared/components/feedback/error-state";
 import { notify } from "@/shared/components/feedback/notify";
 import { plural } from "@/shared/lib/format";
 import { ACCEPTED_IMAGE_TYPES } from "@/core/media/prepare-image";
+import { IMAGE_TOO_LARGE_MESSAGE } from "@/core/media/upload-flow";
 import { Button } from "@/shared/ui/button";
 import { ModalBody, ModalFooter } from "@/shared/ui/modal";
 import { Skeleton } from "@/shared/ui/skeleton";
@@ -86,10 +87,14 @@ export function PublicationMediaPanel({
 
   const onGallery = (files: File[]) =>
     uploadGallery.mutate(files, {
-      onSuccess: ({ total, failed }) =>
+      onSuccess: ({ total, failed, tooLarge }) =>
         failed === 0
           ? notify.success(total === 1 ? "Imagen agregada" : `${total} imágenes agregadas`, title)
-          : notify.error(new Error(`${plural(failed, "imagen")} no se pudo subir.`), "Galería incompleta"),
+          : notify.error(
+              null,
+              "Galería incompleta",
+              `${plural(failed, "imagen")} no se pudo subir.${tooLarge ? ` ${IMAGE_TOO_LARGE_MESSAGE}` : ""}`,
+            ),
     });
 
   const confirmDelete = () => {

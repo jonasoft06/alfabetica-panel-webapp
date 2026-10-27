@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { CheckIcon, LoaderCircleIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import type { MediaItem } from "@/contracts/media";
 import { PORTFOLIO_COVER_SIZE } from "@/contracts/portfolio";
+import { UserFacingError } from "@/core/http/api-error";
 import { notify } from "@/shared/components/feedback/notify";
 import { SpineCard } from "@/shared/components/data/spine-card";
 import { cn } from "@/shared/lib/cn";
@@ -44,7 +45,8 @@ export function CoverEditor({ projectId, title, cover, canWrite, onRequestRemove
       {
         onSuccess: () => notify.success(cover ? "Portada reemplazada" : "Portada subida", title),
         onError: (e) => {
-          setError(cover ? "No se pudo reemplazar la portada. Si el título quedó sin portada, sube la imagen de nuevo." : "No se pudo subir la portada. Intenta de nuevo.");
+          if (e instanceof UserFacingError) setError(e.message);
+          else setError(cover ? "No se pudo reemplazar la portada. Si el título quedó sin portada, sube la imagen de nuevo." : "No se pudo subir la portada. Intenta de nuevo.");
           notify.error(e, "No se pudo subir la portada");
         },
         onSettled: () => setPreview(null),
