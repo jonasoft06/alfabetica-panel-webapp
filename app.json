@@ -1,0 +1,14 @@
+{
+  "healthchecks": {
+    "web": [
+      {
+        "type": "startup",
+        "name": "login",
+        "path": "/login",
+        "attempts": 5,
+        "wait": 5,
+        "timeout": 10
+      }
+    ]
+  }
+}
