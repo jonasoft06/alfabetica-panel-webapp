@@ -17,6 +17,8 @@ export type MockProfileKey = (typeof MOCK_PROFILES)[number]["key"];
 export class MockIdentityProvider implements IdentityProvider {
   readonly kind = "mock" as const;
 
+  async prepare() {}
+
   async signIn(options?: { profile?: string }) {
     await new Promise((resolve) => setTimeout(resolve, 450));
     return `mock-id-token.${options?.profile ?? "admin"}`;

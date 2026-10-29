@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LoaderCircleIcon } from "lucide-react";
 import { clientEnv } from "@/config/env.client";
 import { describeLoginError } from "@/core/auth/auth-errors";
-import { IdentityCancelledError, MOCK_PROFILES, type MockProfileKey } from "@/core/auth/identity";
+import { getIdentityProvider, IdentityCancelledError, MOCK_PROFILES, type MockProfileKey } from "@/core/auth/identity";
 import { useSession } from "@/core/auth/session-provider";
 import { cn } from "@/shared/lib/cn";
 import { GoogleIcon } from "./google-icon";
@@ -26,6 +26,14 @@ export function LoginForm() {
   const [error, setError] = useState<string | null>(params.get("expired") ? "Tu sesión expiró. Vuelve a ingresar." : null);
   const [profile, setProfile] = useState<MockProfileKey>("admin");
   const isMock = clientEnv.authProvider === "mock";
+
+  // Preload the sign-in SDK so the Google popup opens within the click (Safari blocks it otherwise).
+  // Errors surface on click, where signIn retries the load.
+  useEffect(() => {
+    getIdentityProvider()
+      .prepare()
+      .catch(() => undefined);
+  }, []);
 
   const handleSignIn = async () => {
     setPending(true);
